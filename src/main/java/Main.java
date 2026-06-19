@@ -187,7 +187,7 @@ public class Main {
         if (isBuiltinCmd(command)) {
             if (stderrFile != null) {
                 try (FileOutputStream fos = new FileOutputStream(stderrFile, appendStderr)) {
-                    // Touches/initializes target error redirection targets for built-ins
+                    // Touches error redirection targets for built-ins
                 }
             }
 
@@ -204,11 +204,23 @@ public class Main {
             else if (command.equals("cd")) {
                 if (parts.size() >= 2) {
                     String pathArg = parts.get(1);
-                    File targetDir = new File(pathArg);
+                    File targetDir;
 
-                    if (targetDir.exists() && targetDir.isDirectory()) {
-                        System.setProperty("user.dir", targetDir.getAbsolutePath());
+                    if (pathArg.startsWith("/")) {
+                        targetDir = new File(pathArg);
                     } else {
+                        targetDir = new File(System.getProperty("user.dir"), pathArg);
+                    }
+
+                    try {
+                        File canonicalDir = targetDir.getCanonicalFile();
+                        if (canonicalDir.exists() && canonicalDir.isDirectory()) {
+                            System.setProperty("user.dir", canonicalDir.getAbsolutePath());
+                        } else {
+                            outTarget.print("cd: " + pathArg + ": No such file or directory" + System.lineSeparator());
+                            outTarget.flush();
+                        }
+                    } catch (Exception e) {
                         outTarget.print("cd: " + pathArg + ": No such file or directory" + System.lineSeparator());
                         outTarget.flush();
                     }
@@ -291,7 +303,6 @@ public class Main {
             ProcessBuilder pb = new ProcessBuilder(parts);
             Map<String, String> env = pb.environment();
             
-            // Sync current runtime working directory to spawned external processes
             pb.directory(new File(System.getProperty("user.dir")));
             env.put("PATH", executableFile.getParent() + File.pathSeparator + env.getOrDefault("PATH", ""));
 
