@@ -118,9 +118,6 @@ public class Main {
         backgroundJobs.removeAll(jobsToRemove);
     }
 
-    /**
-     * Helper to lookup an executable file path within the system environment PATH variables.
-     */
     private static File findExecutable(String command) {
         String pathEnv = System.getenv("PATH");
         if (pathEnv == null) return null;
@@ -430,7 +427,6 @@ public class Main {
                 continue;
             }
 
-            // check for pipelines ("|")
             int pipeIdx = parts.indexOf("|");
             if (pipeIdx != -1) {
                 List<String> firstCmdParts = new ArrayList<>(parts.subList(0, pipeIdx));
@@ -460,14 +456,17 @@ public class Main {
                     ProcessBuilder pb2 = new ProcessBuilder(secondCmdParts);
                     Map<String, String> env2 = pb2.environment();
                     env2.put("PATH", exec2.getParent() + File.pathSeparator + env2.getOrDefault("PATH", ""));
+                    
+                    // CRITICAL FIX: Explicitly configure the final step in the pipeline to print out to our terminal
+                    pb2.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                    pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
 
                     List<ProcessBuilder> pipeline = List.of(pb1, pb2);
                     List<Process> processes = ProcessBuilder.startPipeline(pipeline);
 
-                    // Wait for the final process in the pipeline to complete
                     processes.get(processes.size() - 1).waitFor();
                 } catch (Exception e) {
-                    // Fallback
+                    // Ignore
                 }
                 continue;
             }
