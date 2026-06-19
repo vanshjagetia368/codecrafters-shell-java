@@ -77,22 +77,38 @@ public class Main {
 
         String stdoutFile = null;
         String stderrFile = null;
+
         boolean appendStdout = false;
+        boolean appendStderr = false;
 
         for (int i = 0; i < parts.size(); i++) {
 
             String token = parts.get(i);
 
-            if (token.equals(">") || token.equals("1>")
-                    || token.equals(">>") || token.equals("1>>")) {
+            if (token.equals(">") || token.equals("1>")) {
 
                 if (i + 1 < parts.size()) {
                     stdoutFile = parts.get(i + 1);
+                    appendStdout = false;
                 }
 
-                appendStdout =
-                        token.equals(">>")
-                                || token.equals("1>>");
+                List<String> newParts =
+                        new ArrayList<>(parts.subList(0, i));
+
+                if (i + 2 < parts.size()) {
+                    newParts.addAll(parts.subList(i + 2, parts.size()));
+                }
+
+                parts = newParts;
+                i--;
+            }
+
+            else if (token.equals(">>") || token.equals("1>>")) {
+
+                if (i + 1 < parts.size()) {
+                    stdoutFile = parts.get(i + 1);
+                    appendStdout = true;
+                }
 
                 List<String> newParts =
                         new ArrayList<>(parts.subList(0, i));
@@ -109,6 +125,25 @@ public class Main {
 
                 if (i + 1 < parts.size()) {
                     stderrFile = parts.get(i + 1);
+                    appendStderr = false;
+                }
+
+                List<String> newParts =
+                        new ArrayList<>(parts.subList(0, i));
+
+                if (i + 2 < parts.size()) {
+                    newParts.addAll(parts.subList(i + 2, parts.size()));
+                }
+
+                parts = newParts;
+                i--;
+            }
+
+            else if (token.equals("2>>")) {
+
+                if (i + 1 < parts.size()) {
+                    stderrFile = parts.get(i + 1);
+                    appendStderr = true;
                 }
 
                 List<String> newParts =
@@ -138,9 +173,11 @@ public class Main {
             StringBuilder output = new StringBuilder();
 
             for (int i = 1; i < parts.size(); i++) {
+
                 if (i > 1) {
                     output.append(" ");
                 }
+
                 output.append(parts.get(i));
             }
 
@@ -150,7 +187,9 @@ public class Main {
             if (stdoutFile != null) {
 
                 try (FileOutputStream fos =
-                             new FileOutputStream(stdoutFile, appendStdout)) {
+                             new FileOutputStream(
+                                     stdoutFile,
+                                     appendStdout)) {
 
                     fos.write(result.getBytes());
                 }
@@ -161,7 +200,12 @@ public class Main {
             }
 
             if (stderrFile != null) {
-                new FileOutputStream(stderrFile).close();
+
+                try (FileOutputStream fos =
+                             new FileOutputStream(
+                                     stderrFile,
+                                     appendStderr)) {
+                }
             }
 
             continue;
@@ -208,12 +252,13 @@ public class Main {
             if (stdoutFile != null) {
 
                 try (FileOutputStream fos =
-                             new FileOutputStream(stdoutFile, appendStdout)) {
+                             new FileOutputStream(
+                                     stdoutFile,
+                                     appendStdout)) {
 
                     fos.write(
                             (result + System.lineSeparator())
-                                    .getBytes()
-                    );
+                                    .getBytes());
                 }
 
             } else {
@@ -222,7 +267,12 @@ public class Main {
             }
 
             if (stderrFile != null) {
-                new FileOutputStream(stderrFile).close();
+
+                try (FileOutputStream fos =
+                             new FileOutputStream(
+                                     stderrFile,
+                                     appendStderr)) {
+                }
             }
 
             continue;
@@ -252,59 +302,60 @@ public class Main {
 
         try {
 
-    ProcessBuilder pb = new ProcessBuilder(parts);
+            ProcessBuilder pb =
+                    new ProcessBuilder(parts);
 
-    if (stdoutFile != null) {
+            if (stdoutFile != null) {
 
-        if (appendStdout) {
-            pb.redirectOutput(
-                ProcessBuilder.Redirect.appendTo(
-                    new File(stdoutFile)
-                )
-            );
-        } else {
-            pb.redirectOutput(
-                ProcessBuilder.Redirect.to(
-                    new File(stdoutFile)
-                )
-            );
+                if (appendStdout) {
+
+                    pb.redirectOutput(
+                            ProcessBuilder.Redirect.appendTo(
+                                    new File(stdoutFile)));
+
+                } else {
+
+                    pb.redirectOutput(
+                            new File(stdoutFile));
+                }
+            }
+
+            if (stderrFile != null) {
+
+                if (appendStderr) {
+
+                    pb.redirectError(
+                            ProcessBuilder.Redirect.appendTo(
+                                    new File(stderrFile)));
+
+                } else {
+
+                    pb.redirectError(
+                            new File(stderrFile));
+                }
+            }
+
+            Process process = pb.start();
+
+            if (stdoutFile == null) {
+
+                InputStream stdout =
+                        process.getInputStream();
+
+                int ch;
+
+                while ((ch = stdout.read()) != -1) {
+                    System.out.print((char) ch);
+                }
+            }
+
+            process.waitFor();
+
+        } catch (Exception e) {
+
+            System.out.println(
+                    command + ": command not found");
         }
-    }
-
-    if (stderrFile != null) {
-        pb.redirectError(new File(stderrFile));
-    }
-
-    Process process = pb.start();
-
-    // Print stdout only when not redirected
-    if (stdoutFile == null) {
-
-        InputStream stdout = process.getInputStream();
-
-        int ch;
-        while ((ch = stdout.read()) != -1) {
-            System.out.print((char) ch);
-        }
-    }
-
-    // Print stderr only when not redirected
-    if (stderrFile == null) {
-
-        InputStream stderr = process.getErrorStream();
-
-        int ch;
-        while ((ch = stderr.read()) != -1) {
-            System.out.print((char) ch);
-        }
-    }
-
-    process.waitFor();
-
-} catch (Exception e) {
-
-    System.out.println(command + ": command not found");
-}
     }
 
     scanner.close();
