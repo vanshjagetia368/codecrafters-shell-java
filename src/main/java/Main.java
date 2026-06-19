@@ -6,7 +6,6 @@ import java.util.Scanner;
 public class Main {
     private static List<String> parseCommand(String input) {
     List<String> args = new ArrayList<>();
-
     StringBuilder current = new StringBuilder();
 
     boolean inSingleQuotes = false;
@@ -15,7 +14,14 @@ public class Main {
     for (int i = 0; i < input.length(); i++) {
         char c = input.charAt(i);
 
-        if (c == '\'' && !inDoubleQuotes) {
+        // Backslash outside quotes
+        if (c == '\\' && !inSingleQuotes && !inDoubleQuotes) {
+            if (i + 1 < input.length()) {
+                current.append(input.charAt(i + 1));
+                i++;
+            }
+        }
+        else if (c == '\'' && !inDoubleQuotes) {
             inSingleQuotes = !inSingleQuotes;
         }
         else if (c == '"' && !inSingleQuotes) {
