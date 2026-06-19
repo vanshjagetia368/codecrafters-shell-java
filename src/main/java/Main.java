@@ -13,7 +13,25 @@ import java.util.Set;
 
 public class Main {
     
+    // Simple structural container to maintain background job metadata
+    static class Job {
+        int id;
+        long pid;
+        String command;
+        String status;
+
+        public Job(int id, long pid, String command, String status) {
+            this.id = id;
+            this.pid = pid;
+            this.command = command;
+            this.status = status;
+        }
+    }
+
     private static final Map<String, String> completionRegistry = new HashMap<>();
+    // Tracks active background tasks globally
+    private static final List<Job> backgroundJobs = new ArrayList<>();
+    private static int nextJobId = 1;
     
     private static String findLongestCommonPrefix(List<String> strs) {
         if (strs == null || strs.isEmpty()) return "";
@@ -501,7 +519,23 @@ public class Main {
                 continue;
             }
 
+            // Implement active jobs printing matching format criteria
             else if (command.equals("jobs")) {
+                StringBuilder jobsOutput = new StringBuilder();
+                for (Job job : backgroundJobs) {
+                    // %-24s pads "Running" with right-side spaces to match 24 chars exact width
+                    jobsOutput.append(String.format("[%d]+  %-24s%s", job.id, job.status, job.command))
+                              .append(System.lineSeparator());
+                }
+                
+                String outText = jobsOutput.toString();
+                if (stdoutFile != null) {
+                    try (FileOutputStream fos = new FileOutputStream(stdoutFile, appendStdout)) {
+                        fos.write(outText.getBytes());
+                    }
+                } else {
+                    System.out.print(outText);
+                }
                 continue;
             }
 
@@ -529,14 +563,12 @@ public class Main {
             try {
                 ProcessBuilder pb = new ProcessBuilder(parts);
                 
-                // Configure standard output stream routing
                 if (stdoutFile != null) {
                     pb.redirectOutput(appendStdout ? ProcessBuilder.Redirect.appendTo(new File(stdoutFile)) : ProcessBuilder.Redirect.to(new File(stdoutFile)));
                 } else {
                     pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
                 }
                 
-                // Configure standard error stream routing
                 if (stderrFile != null) {
                     pb.redirectError(appendStderr ? ProcessBuilder.Redirect.appendTo(new File(stderrFile)) : ProcessBuilder.Redirect.to(new File(stderrFile)));
                 } else {
@@ -546,8 +578,13 @@ public class Main {
                 Process process = pb.start();
 
                 if (isBackgroundJob) {
-                    System.out.println("[1] " + process.pid());
+                    System.out.println("[" + nextJobId + "] " + process.pid());
                     System.out.flush();
+                    
+                    // Reassemble full original command to maintain exact test syntax output (including trailing &)
+                    String commandWithAmpersand = String.join(" ", parts) + " &";
+                    backgroundJobs.add(new Job(nextJobId, process.pid(), commandWithAmpersand, "Running"));
+                    nextJobId++;
                 } else {
                     process.waitFor();
                 }
