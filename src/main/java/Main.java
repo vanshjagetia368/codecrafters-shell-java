@@ -114,18 +114,18 @@ public class Main {
                         boolean isArgumentCompletion = currentInput.contains(" ");
                         String partialToken = "";
                         String matchPrefix = "";
+                        String targetDirPath = "."; // Fallback to current directory context
 
                         if (isArgumentCompletion) {
                             int lastSpaceIdx = currentInput.lastIndexOf(' ');
                             partialToken = currentInput.substring(lastSpaceIdx + 1);
                             
-                            // Check if dealing with a nested path string
                             if (partialToken.contains("/")) {
                                 int lastSlashIdx = partialToken.lastIndexOf('/');
-                                String dirPath = partialToken.substring(0, lastSlashIdx + 1);
+                                targetDirPath = partialToken.substring(0, lastSlashIdx + 1);
                                 matchPrefix = partialToken.substring(lastSlashIdx + 1);
                                 
-                                File targetDir = new File(dirPath);
+                                File targetDir = new File(targetDirPath);
                                 if (targetDir.exists() && targetDir.isDirectory()) {
                                     File[] files = targetDir.listFiles();
                                     if (files != null) {
@@ -138,7 +138,7 @@ public class Main {
                                 }
                             } else {
                                 matchPrefix = partialToken;
-                                File currentDir = new File(".");
+                                File currentDir = new File(targetDirPath);
                                 File[] files = currentDir.listFiles();
                                 if (files != null) {
                                     for (File file : files) {
@@ -183,7 +183,17 @@ public class Main {
 
                         if (candidates.size() == 1) {
                             String matched = candidates.get(0);
-                            String completedText = matched.substring(matchPrefix.length()) + " ";
+                            String suffix = " "; // Default trailing spacing boundary
+                            
+                            if (isArgumentCompletion) {
+                                // Assess whether the single resolved target is a directory structure 
+                                File matchFile = new File(targetDirPath, matched);
+                                if (matchFile.isDirectory()) {
+                                    suffix = "/";
+                                }
+                            }
+                            
+                            String completedText = matched.substring(matchPrefix.length()) + suffix;
                             inputBuilder.append(completedText);
                             System.out.print(completedText);
                             System.out.flush();
