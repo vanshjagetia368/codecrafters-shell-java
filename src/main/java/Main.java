@@ -113,7 +113,6 @@ public class Main {
                     String currentInput = inputBuilder.toString();
                     
                     if (!currentInput.isEmpty()) {
-                        // Stage #pm5: Intercept Programmable Completion Script Execution Context
                         List<String> tempParts = parseCommand(currentInput);
                         boolean baseCommandHasSpace = currentInput.contains(" ");
                         
@@ -128,17 +127,22 @@ public class Main {
                                 
                                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                                     String line = reader.readLine();
+                                    // Stage #qf1: Handle case when script outputs nothing
                                     if (line != null && !line.trim().isEmpty()) {
                                         String completionWord = line.trim() + " ";
                                         inputBuilder.append(completionWord);
                                         System.out.print(completionWord);
                                         System.out.flush();
                                         consecutiveTabs = 0;
-                                        continue; 
+                                    } else {
+                                        System.out.print("\u0007");
+                                        System.out.flush();
+                                        consecutiveTabs = 0;
                                     }
+                                    continue; 
                                 }
                             } catch (Exception e) {
-                                // Fallback if execution throws an issue
+                                // Fallback
                             }
                         }
 
