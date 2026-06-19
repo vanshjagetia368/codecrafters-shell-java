@@ -114,7 +114,7 @@ public class Main {
                         boolean isArgumentCompletion = currentInput.contains(" ");
                         String partialToken = "";
                         String matchPrefix = "";
-                        String targetDirPath = "."; // Fallback to current directory context
+                        String targetDirPath = "."; 
 
                         if (isArgumentCompletion) {
                             int lastSpaceIdx = currentInput.lastIndexOf(' ');
@@ -183,10 +183,9 @@ public class Main {
 
                         if (candidates.size() == 1) {
                             String matched = candidates.get(0);
-                            String suffix = " "; // Default trailing spacing boundary
+                            String suffix = " "; 
                             
                             if (isArgumentCompletion) {
-                                // Assess whether the single resolved target is a directory structure 
                                 File matchFile = new File(targetDirPath, matched);
                                 if (matchFile.isDirectory()) {
                                     suffix = "/";
@@ -220,6 +219,7 @@ public class Main {
                                 }
                             }
                         } else {
+                            // Stage #vs5 Fix: Match pool evaluated to zero entries -> Sound terminal bell explicitly
                             System.out.print("\u0007");
                             System.out.flush();
                             consecutiveTabs = 0;
