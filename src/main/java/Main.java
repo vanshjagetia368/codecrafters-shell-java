@@ -1,6 +1,8 @@
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,7 +13,6 @@ import java.util.Set;
 
 public class Main {
     
-    // Stage #wl6: Persistent registry tracking maps from command -> completer_script_path
     private static final Map<String, String> completionRegistry = new HashMap<>();
     
     private static String findLongestCommonPrefix(List<String> strs) {
@@ -112,6 +113,36 @@ public class Main {
                     String currentInput = inputBuilder.toString();
                     
                     if (!currentInput.isEmpty()) {
+                        // Stage #pm5: Intercept Programmable Completion Script Execution Context
+                        List<String> tempParts = parseCommand(currentInput);
+                        boolean baseCommandHasSpace = currentInput.contains(" ");
+                        
+                        if (baseCommandHasSpace && !tempParts.isEmpty() && completionRegistry.containsKey(tempParts.get(0))) {
+                            String baseCmd = tempParts.get(0);
+                            String scriptPath = completionRegistry.get(baseCmd);
+                            
+                            try {
+                                ProcessBuilder pb = new ProcessBuilder(scriptPath);
+                                Process process = pb.start();
+                                process.waitFor();
+                                
+                                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                                    String line = reader.readLine();
+                                    if (line != null && !line.trim().isEmpty()) {
+                                        String completionWord = line.trim() + " ";
+                                        inputBuilder.append(completionWord);
+                                        System.out.print(completionWord);
+                                        System.out.flush();
+                                        consecutiveTabs = 0;
+                                        continue; 
+                                    }
+                                }
+                            } catch (Exception e) {
+                                // Fallback if execution throws an issue
+                            }
+                        }
+
+                        // Standard Fallback Autocompletion Flow
                         Set<String> candidatesSet = new LinkedHashSet<>();
                         boolean isArgumentCompletion = currentInput.contains(" ");
                         String partialToken = "";
@@ -365,7 +396,6 @@ public class Main {
                 continue;
             }
             
-            // Stage #wl6: Handle complete -C (registration) and complete -p (normalized viewing)
             else if (command.equals("complete")) {
                 String result = null;
 
