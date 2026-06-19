@@ -142,7 +142,7 @@ public class Main {
         return false;
     }
 
-    private static void executeCommandBlock(List<String> parts, InputStream pipelineIn, PrintStream pipelineOut) throws Exception {
+    private static void executeCommandBlock(List<String> parts, InputStream pipelineIn, PrintStream pipelineOut, boolean isBackgroundJob, String rawCommandText) throws Exception {
         String stdoutFile = null;
         String stderrFile = null;
         boolean appendStdout = false;
@@ -290,9 +290,13 @@ public class Main {
             Process process = pb.start();
 
             if (pipelineIn != System.in) {
-                try (OutputStream os = process.getOutputStream()) {
-                    pipelineIn.transferTo(os);
-                }
+                // If pipe mapping handles blocking dynamic streams, pump in background threads
+                Thread pumpThread = new Thread(() -> {
+                    try (OutputStream os = process.getOutputStream()) {
+                        pipelineIn.transferTo(os);
+                    } catch (Exception e) {}
+                });
+                pumpThread.start();
             }
 
             if (outTarget != System.out && stdoutFile == null) {
@@ -301,7 +305,23 @@ public class Main {
                 }
             }
 
-            process.waitFor();
+            if (isBackgroundJob) {
+                int currentJobId = 1;
+                if (!backgroundJobs.isEmpty()) {
+                    int maxId = 0;
+                    for (Job j : backgroundJobs) {
+                        if (j.id > maxId) maxId = j.id;
+                    }
+                    currentJobId = maxId + 1;
+                }
+
+                System.out.println("[" + currentJobId + "] " + process.pid());
+                System.out.flush();
+                
+                backgroundJobs.add(new Job(currentJobId, process, rawCommandText, "Running"));
+            } else {
+                process.waitFor();
+            }
         }
     }
 
@@ -580,6 +600,8 @@ public class Main {
 
             if (parts.isEmpty()) continue;
 
+            String rawCommandText = String.join(" ", parts);
+
             int pipeIdx = parts.indexOf("|");
             if (pipeIdx != -1) {
                 List<String> firstCmdParts = new ArrayList<>(parts.subList(0, pipeIdx));
@@ -591,18 +613,16 @@ public class Main {
                 String secondCmd = secondCmdParts.get(0);
 
                 try {
-                    // Scenario A: The first command is a built-in (e.g., echo apple | wc)
                     if (isBuiltinCmd(firstCmd)) {
                         ByteArrayOutputStream pipelinePipe = new ByteArrayOutputStream();
                         PrintStream pipePrintStream = new PrintStream(pipelinePipe);
 
-                        executeCommandBlock(firstCmdParts, System.in, pipePrintStream);
+                        executeCommandBlock(firstCmdParts, System.in, pipePrintStream, false, "");
                         pipePrintStream.flush();
 
                         InputStream pipeInputStream = new java.io.ByteArrayInputStream(pipelinePipe.toByteArray());
-                        executeCommandBlock(secondCmdParts, pipeInputStream, System.out);
+                        executeCommandBlock(secondCmdParts, pipeInputStream, System.out, false, "");
                     } 
-                    // Scenario B: The second command is a built-in (e.g., ls | type exit)
                     else if (isBuiltinCmd(secondCmd)) {
                         File exec1 = findExecutable(firstCmdParts.get(0));
                         if (exec1 == null) {
@@ -617,13 +637,11 @@ public class Main {
 
                         Process p1 = pb1.start();
                         
-                        // Consume the stream safely from the active background binary
                         try (InputStream pipeIn = p1.getInputStream()) {
-                            executeCommandBlock(secondCmdParts, pipeIn, System.out);
+                            executeCommandBlock(secondCmdParts, pipeIn, System.out, false, "");
                         }
                         p1.waitFor();
                     }
-                    // Scenario C: Both commands are external binaries (e.g., tail -f | head)
                     else {
                         File exec1 = findExecutable(firstCmdParts.get(0));
                         File exec2 = findExecutable(secondCmdParts.get(0));
@@ -651,7 +669,7 @@ public class Main {
             }
 
             try {
-                executeCommandBlock(parts, System.in, System.out);
+                executeCommandBlock(parts, System.in, System.out, isBackgroundJob, rawCommandText);
             } catch (Exception e) { /* Handle safely */ }
         }
     }
