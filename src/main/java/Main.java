@@ -9,6 +9,18 @@ import java.util.Set;
 
 public class Main {
     
+    private static String findLongestCommonPrefix(List<String> strs) {
+        if (strs == null || strs.isEmpty()) return "";
+        String prefix = strs.get(0);
+        for (int i = 1; i < strs.size(); i++) {
+            while (strs.get(i).indexOf(prefix) != 0) {
+                prefix = prefix.substring(0, prefix.length() - 1);
+                if (prefix.isEmpty()) return "";
+            }
+        }
+        return prefix;
+    }
+
     private static List<String> parseCommand(String input) {
         List<String> args = new ArrayList<>();
         StringBuilder current = new StringBuilder();
@@ -86,7 +98,6 @@ public class Main {
                 // Handle Enter Key (Newline)
                 if (c == '\n' || c == '\r') {
                     consecutiveTabs = 0;
-                    // Restore terminal configurations back to standard cooked mode immediately
                     String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
                     Runtime.getRuntime().exec(setCooked).waitFor();
                     System.out.println();
@@ -139,14 +150,26 @@ public class Main {
                             consecutiveTabs = 0;
                         } 
                         else if (candidates.size() > 1) {
-                            if (consecutiveTabs == 1) {
-                                System.out.print("\u0007");
+                            String lcp = findLongestCommonPrefix(candidates);
+                            
+                            // If the Lcp offers a progression forward, partial complete it!
+                            if (lcp.length() > currentInput.length()) {
+                                String completedText = lcp.substring(currentInput.length());
+                                inputBuilder.append(completedText);
+                                System.out.print(completedText);
                                 System.out.flush();
-                            } else if (consecutiveTabs >= 2) {
-                                System.out.println(); 
-                                System.out.println(String.join("  ", candidates));
-                                System.out.print("$ " + currentInput);
-                                System.out.flush();
+                                consecutiveTabs = 0; // Reset tab count since we updated the input line
+                            } else {
+                                // No new progression found via LCP -> Handle fallback matching behaviors
+                                if (consecutiveTabs == 1) {
+                                    System.out.print("\u0007");
+                                    System.out.flush();
+                                } else if (consecutiveTabs >= 2) {
+                                    System.out.println(); 
+                                    System.out.println(String.join("  ", candidates));
+                                    System.out.print("$ " + inputBuilder.toString());
+                                    System.out.flush();
+                                }
                             }
                         } else {
                             System.out.print("\u0007");
