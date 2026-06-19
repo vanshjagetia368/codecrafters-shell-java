@@ -57,126 +57,249 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        Scanner scanner = new Scanner(System.in);
 
-        while (true) {
-            System.out.print("$ ");
-            System.out.flush();
+    Scanner scanner = new Scanner(System.in);
 
-            if (!scanner.hasNextLine()) {
+    while (true) {
+
+        System.out.print("$ ");
+        System.out.flush();
+
+        if (!scanner.hasNextLine()) {
+            break;
+        }
+
+        String input = scanner.nextLine();
+        List<String> parts = parseCommand(input);
+
+        if (parts.isEmpty()) {
+            continue;
+        }
+
+        String stdoutFile = null;
+        String stderrFile = null;
+
+        for (int i = 0; i < parts.size(); i++) {
+
+            String token = parts.get(i);
+
+            if (token.equals(">") || token.equals("1>")) {
+
+                if (i + 1 < parts.size()) {
+                    stdoutFile = parts.get(i + 1);
+                }
+
+                List<String> newParts =
+                        new ArrayList<>(parts.subList(0, i));
+
+                if (i + 2 < parts.size()) {
+                    newParts.addAll(parts.subList(i + 2, parts.size()));
+                }
+
+                parts = newParts;
+                i--;
+            }
+
+            else if (token.equals("2>")) {
+
+                if (i + 1 < parts.size()) {
+                    stderrFile = parts.get(i + 1);
+                }
+
+                List<String> newParts =
+                        new ArrayList<>(parts.subList(0, i));
+
+                if (i + 2 < parts.size()) {
+                    newParts.addAll(parts.subList(i + 2, parts.size()));
+                }
+
+                parts = newParts;
+                i--;
+            }
+        }
+
+        if (parts.isEmpty()) {
+            continue;
+        }
+
+        String command = parts.get(0);
+
+        if (command.equals("exit")) {
+            break;
+        }
+
+        else if (command.equals("echo")) {
+
+            StringBuilder output = new StringBuilder();
+
+            for (int i = 1; i < parts.size(); i++) {
+                if (i > 1) {
+                    output.append(" ");
+                }
+                output.append(parts.get(i));
+            }
+
+            String result =
+                    output.toString() + System.lineSeparator();
+
+            if (stdoutFile != null) {
+
+                try (FileOutputStream fos =
+                             new FileOutputStream(stdoutFile)) {
+
+                    fos.write(result.getBytes());
+                }
+
+            } else {
+
+                System.out.print(result);
+            }
+
+            if (stderrFile != null) {
+                new FileOutputStream(stderrFile).close();
+            }
+
+            continue;
+        }
+
+        else if (command.equals("type")) {
+
+            if (parts.size() < 2) {
+                continue;
+            }
+
+            String cmd = parts.get(1);
+            String result;
+
+            if (cmd.equals("echo")
+                    || cmd.equals("exit")
+                    || cmd.equals("type")) {
+
+                result = cmd + " is a shell builtin";
+
+            } else {
+
+                result = cmd + ": not found";
+
+                String[] paths =
+                        System.getenv("PATH")
+                                .split(File.pathSeparator);
+
+                for (String dir : paths) {
+
+                    File file = new File(dir, cmd);
+
+                    if (file.exists() && file.canExecute()) {
+
+                        result =
+                                cmd + " is "
+                                        + file.getAbsolutePath();
+
+                        break;
+                    }
+                }
+            }
+
+            if (stdoutFile != null) {
+
+                try (FileOutputStream fos =
+                             new FileOutputStream(stdoutFile)) {
+
+                    fos.write(
+                            (result + System.lineSeparator())
+                                    .getBytes()
+                    );
+                }
+
+            } else {
+
+                System.out.println(result);
+            }
+
+            if (stderrFile != null) {
+                new FileOutputStream(stderrFile).close();
+            }
+
+            continue;
+        }
+
+        boolean foundExecutable = false;
+
+        String[] paths =
+                System.getenv("PATH")
+                        .split(File.pathSeparator);
+
+        for (String dir : paths) {
+
+            File file = new File(dir, command);
+
+            if (file.exists() && file.canExecute()) {
+                foundExecutable = true;
                 break;
             }
+        }
 
-            String input = scanner.nextLine();
-            List<String> parts = parseCommand(input);
+        if (!foundExecutable) {
 
-            if (parts.isEmpty()) {
-                continue;
-            }
+            String result =
+                    command + ": command not found";
 
-            String stderrFile = null;
-            for (int i = 0; i < parts.size(); i++) {
-                if (parts.get(i).equals("2>")) {
-                    if (i + 1 < parts.size()) {
-                        stderrFile = parts.get(i + 1);
-                    }
-                    List<String> newParts = new ArrayList<>(parts.subList(0, i));
-                    if (i + 2 < parts.size()) {
-                        newParts.addAll(parts.subList(i + 2, parts.size()));
-                    }
-                    parts = newParts;
-                    break;
-                }
-            }
+            if (stdoutFile != null) {
 
-            if (parts.isEmpty()) {
-                continue;
-            }
+                try (FileOutputStream fos =
+                             new FileOutputStream(stdoutFile)) {
 
-            String command = parts.get(0);
-
-            if (command.equals("exit")) {
-                break;
-            }
-
-            if (command.equals("echo")) {
-                StringBuilder output = new StringBuilder();
-                for (int i = 1; i < parts.size(); i++) {
-                    if (i > 1) {
-                        output.append(" ");
-                    }
-                    output.append(parts.get(i));
-                }
-                System.out.println(output);
-
-                if (stderrFile != null) {
-                    try (FileOutputStream ignored = new FileOutputStream(stderrFile)) {
-                    } catch (Exception ignored) {
-                    }
-                }
-                continue;
-            }
-
-            if (command.equals("type")) {
-                if (parts.size() < 2) {
-                    continue;
-                }
-                String cmd = parts.get(1);
-                if (cmd.equals("echo") || cmd.equals("exit") || cmd.equals("type")) {
-                    System.out.println(cmd + " is a shell builtin");
-                } else {
-                    boolean found = false;
-                    String[] paths = System.getenv("PATH").split(File.pathSeparator);
-                    for (String dir : paths) {
-                        File file = new File(dir, cmd);
-                        if (file.exists() && file.canExecute()) {
-                            System.out.println(cmd + " is " + file.getAbsolutePath());
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        System.out.println(cmd + ": not found");
-                    }
+                    fos.write(
+                            (result + System.lineSeparator())
+                                    .getBytes()
+                    );
                 }
 
-                if (stderrFile != null) {
-                    try (FileOutputStream ignored = new FileOutputStream(stderrFile)) {
-                    } catch (Exception ignored) {
-                    }
-                }
-                continue;
+            } else {
+
+                System.out.println(result);
             }
 
-            boolean foundExecutable = false;
-            String[] paths = System.getenv("PATH").split(File.pathSeparator);
-            for (String dir : paths) {
-                File file = new File(dir, command);
-                if (file.exists() && file.canExecute()) {
-                    foundExecutable = true;
-                    break;
-                }
-            }
-            if (!foundExecutable) {
-                System.out.println(command + ": command not found");
-                continue;
+            continue;
+        }
+
+        try {
+
+            ProcessBuilder pb =
+                    new ProcessBuilder(parts);
+
+            if (stdoutFile != null) {
+                pb.redirectOutput(new File(stdoutFile));
             }
 
-            try {
-                ProcessBuilder pb = new ProcessBuilder(parts);
-                if (stderrFile != null) {
-                    pb.redirectError(new File(stderrFile));
-                }
-                Process process = pb.start();
-                InputStream stdout = process.getInputStream();
+            if (stderrFile != null) {
+                pb.redirectError(new File(stderrFile));
+            }
+
+            Process process = pb.start();
+
+            if (stdoutFile == null) {
+
+                InputStream stdout =
+                        process.getInputStream();
+
                 int ch;
+
                 while ((ch = stdout.read()) != -1) {
                     System.out.print((char) ch);
                 }
-                process.waitFor();
-            } catch (Exception e) {
-                System.out.println(command + ": command not found");
             }
+
+            process.waitFor();
+
+        } catch (Exception e) {
+
+            System.out.println(
+                    command + ": command not found"
+            );
         }
     }
+
+    scanner.close();
+}
 }
