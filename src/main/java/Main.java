@@ -212,14 +212,23 @@ public class Main {
                                     System.out.print("\u0007");
                                     System.out.flush();
                                 } else if (consecutiveTabs >= 2) {
+                                    // Format the listing output with trailing slashes for directory objects
+                                    List<String> displayedCandidates = new ArrayList<>();
+                                    for (String cand : candidates) {
+                                        if (isArgumentCompletion && new File(targetDirPath, cand).isDirectory()) {
+                                            displayedCandidates.add(cand + "/");
+                                        } else {
+                                            displayedCandidates.add(cand);
+                                        }
+                                    }
+                                    
                                     System.out.println(); 
-                                    System.out.println(String.join("  ", candidates));
+                                    System.out.println(String.join("  ", displayedCandidates));
                                     System.out.print("$ " + inputBuilder.toString());
                                     System.out.flush();
                                 }
                             }
                         } else {
-                            // Stage #vs5 Fix: Match pool evaluated to zero entries -> Sound terminal bell explicitly
                             System.out.print("\u0007");
                             System.out.flush();
                             consecutiveTabs = 0;
