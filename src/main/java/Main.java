@@ -93,10 +93,6 @@ public class Main {
         return args;
     }
 
-    /**
-     * Reaps any completed background jobs, prints their 'Done' status, 
-     * and purges them from the active jobs table. Used before printing prompts.
-     */
     private static void reapJobs() {
         int totalJobs = backgroundJobs.size();
         List<Job> jobsToRemove = new ArrayList<>();
@@ -126,24 +122,21 @@ public class Main {
     public static void main(String[] args) throws Exception {
         String[] builtins = {"echo", "exit", "type", "complete", "jobs"};
 
-        // Configure the terminal raw state ONCE at startup to prevent race conditions
         String[] setRaw = {"stty", "-icanon", "-echo", "min", "1", "-F", "/dev/tty"};
         Runtime.getRuntime().exec(setRaw).waitFor();
 
-        // Register a shutdown hook to cleanly restore terminal configurations when exiting
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
                 Runtime.getRuntime().exec(setCooked).waitFor();
             } catch (Exception e) {
-                // Keep quiet on shutdown
+                // Ignore
             }
         }));
 
         InputStream in = System.in;
 
         while (true) {
-            // Automatically reap completed background jobs BEFORE printing the prompt marker
             reapJobs();
 
             System.out.print("$ ");
@@ -258,11 +251,10 @@ public class Main {
                                 }
                                 continue; 
                             } catch (Exception e) {
-                                // Fallback
+                                // Ignore
                             }
                         }
 
-                        // Standard Fallback Autocompletion Flow
                         Set<String> candidatesSet = new LinkedHashSet<>();
                         boolean isArgumentCompletion = currentInput.contains(" ");
                         String partialToken = "";
@@ -463,7 +455,6 @@ public class Main {
             String command = parts.get(0);
 
             if (command.equals("exit")) {
-                // Restore terminal configurations right before terminating
                 String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
                 Runtime.getRuntime().exec(setCooked).waitFor();
                 break;
@@ -567,7 +558,6 @@ public class Main {
                 int totalJobs = backgroundJobs.size();
                 List<Job> jobsToRemove = new ArrayList<>();
 
-                // 1. Tag completed entries before printing to ensure precise indexing logic remains safe
                 for (Job job : backgroundJobs) {
                     if (!job.process.isAlive()) {
                         job.status = "Done";
@@ -575,7 +565,6 @@ public class Main {
                     }
                 }
 
-                // 2. Output all jobs in sequential chronological order (Job ID sorting order)
                 for (int i = 0; i < totalJobs; i++) {
                     Job job = backgroundJobs.get(i);
 
@@ -591,7 +580,6 @@ public class Main {
                               .append(System.lineSeparator());
                 }
 
-                // 3. Purge finished processes out of global list now that output sequence concluded
                 backgroundJobs.removeAll(jobsToRemove);
 
                 String outText = jobsOutput.toString();
@@ -623,15 +611,17 @@ public class Main {
                 continue;
             }
 
-            // Capture raw user arguments sequence for shell format presentation strings
             String rawCommandText = String.join(" ", parts);
 
             try {
-                // Fix for Stage #IP1: Keep original program name in argv[0] intact
-                List<String> executionArgs = new ArrayList<>(parts);
-                executionArgs.set(0, executableFile.getAbsolutePath());
-
-                ProcessBuilder pb = new ProcessBuilder(executionArgs);
+                // Pass parts completely unmutated so ProcessBuilder uses the short name as argv[0]
+                ProcessBuilder pb = new ProcessBuilder(parts);
+                
+                // Explicitly inject the parent folder of the binary into the child process PATH environment
+                // to make sure ProcessBuilder resolves it without overriding argv[0]
+                Map<String, String> env = pb.environment();
+                String currentPath = env.getOrDefault("PATH", "");
+                env.put("PATH", executableFile.getParent() + File.pathSeparator + currentPath);
                 
                 if (stdoutFile != null) {
                     pb.redirectOutput(appendStdout ? ProcessBuilder.Redirect.appendTo(new File(stdoutFile)) : ProcessBuilder.Redirect.to(new File(stdoutFile)));
