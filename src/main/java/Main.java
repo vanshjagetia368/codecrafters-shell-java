@@ -613,6 +613,9 @@ public class Main {
                 continue;
             }
 
+            // Capture the clean, user-typed raw command string for job tracking BEFORE updating parts[0]
+            String rawCommandText = String.join(" ", parts);
+
             // Always reference absolute resolved path to bypass execution ambiguities
             parts.set(0, executableFile.getAbsolutePath());
 
@@ -637,7 +640,7 @@ public class Main {
                     System.out.println("[" + nextJobId + "] " + process.pid());
                     System.out.flush();
                     
-                    String rawCommandText = String.join(" ", parts);
+                    // Uses the untampered command string captured earlier
                     backgroundJobs.add(new Job(nextJobId, process, rawCommandText, "Running"));
                     nextJobId++;
                 } else {
