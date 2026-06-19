@@ -93,10 +93,40 @@ public class Main {
         return args;
     }
 
+    /**
+     * Reaps any completed background jobs, prints their 'Done' status, 
+     * and purges them from the active jobs table.
+     */
+    private static void reapJobs() {
+        int totalJobs = backgroundJobs.size();
+        List<Job> jobsToRemove = new ArrayList<>();
+
+        for (int i = 0; i < totalJobs; i++) {
+            Job job = backgroundJobs.get(i);
+            
+            if (!job.process.isAlive()) {
+                job.status = "Done";
+                jobsToRemove.add(job);
+
+                char marker = ' ';
+                if (i == totalJobs - 1) {
+                    marker = '+';
+                } else if (i == totalJobs - 2) {
+                    marker = '-';
+                }
+
+                System.out.printf("[%d]%c  %-24s%s%n", job.id, marker, job.status, job.command);
+                System.out.flush();
+            }
+        }
+        
+        backgroundJobs.removeAll(jobsToRemove);
+    }
+
     public static void main(String[] args) throws Exception {
         String[] builtins = {"echo", "exit", "type", "complete", "jobs"};
 
-        // 1. Configure the terminal raw state ONCE at startup to prevent race conditions
+        // Configure the terminal raw state ONCE at startup to prevent race conditions
         String[] setRaw = {"stty", "-icanon", "-echo", "min", "1", "-F", "/dev/tty"};
         Runtime.getRuntime().exec(setRaw).waitFor();
 
@@ -113,6 +143,9 @@ public class Main {
         InputStream in = System.in;
 
         while (true) {
+            // Automatically reap completed background jobs BEFORE printing the prompt marker
+            reapJobs();
+
             System.out.print("$ ");
             System.out.flush();
 
@@ -530,17 +563,14 @@ public class Main {
             }
 
             else if (command.equals("jobs")) {
+                // Run the shared reaping cleanup logic first
+                reapJobs();
+
                 StringBuilder jobsOutput = new StringBuilder();
                 int totalJobs = backgroundJobs.size();
-                List<Job> jobsToRemove = new ArrayList<>();
 
                 for (int i = 0; i < totalJobs; i++) {
                     Job job = backgroundJobs.get(i);
-                    
-                    if (!job.process.isAlive()) {
-                        job.status = "Done";
-                        jobsToRemove.add(job);
-                    }
 
                     char marker = ' ';
                     if (i == totalJobs - 1) {
@@ -549,12 +579,10 @@ public class Main {
                         marker = '-';
                     }
                     
-                    String commandStr = job.status.equals("Done") ? job.command : job.command + " &";
+                    String commandStr = job.command + " &";
                     jobsOutput.append(String.format("[%d]%c  %-24s%s", job.id, marker, job.status, commandStr))
                               .append(System.lineSeparator());
                 }
-                
-                backgroundJobs.removeAll(jobsToRemove);
 
                 String outText = jobsOutput.toString();
                 if (stdoutFile != null) {
@@ -563,6 +591,7 @@ public class Main {
                     }
                 } else {
                     System.out.print(outText);
+                    System.out.flush();
                 }
                 continue;
             }
@@ -584,9 +613,8 @@ public class Main {
                 continue;
             }
 
-            if (command.contains(" ")) {
-                parts.set(0, executableFile.getAbsolutePath());
-            }
+            // Always reference absolute resolved path to bypass execution ambiguities
+            parts.set(0, executableFile.getAbsolutePath());
 
             try {
                 ProcessBuilder pb = new ProcessBuilder(parts);
