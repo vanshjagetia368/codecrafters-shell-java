@@ -3,11 +3,16 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class Main {
+    
+    // Stage #wl6: Persistent registry tracking maps from command -> completer_script_path
+    private static final Map<String, String> completionRegistry = new HashMap<>();
     
     private static String findLongestCommonPrefix(List<String> strs) {
         if (strs == null || strs.isEmpty()) return "";
@@ -360,12 +365,26 @@ public class Main {
                 continue;
             }
             
-            // Stage #oi7: Handle complete -p behavior
+            // Stage #wl6: Handle complete -C (registration) and complete -p (normalized viewing)
             else if (command.equals("complete")) {
-                if (parts.size() >= 3 && parts.get(1).equals("-p")) {
+                String result = null;
+
+                if (parts.size() >= 4 && parts.get(1).equals("-C")) {
+                    String scriptPath = parts.get(2);
+                    String targetCmd = parts.get(3);
+                    completionRegistry.put(targetCmd, scriptPath);
+                } 
+                else if (parts.size() >= 3 && parts.get(1).equals("-p")) {
                     String targetCmd = parts.get(2);
-                    String result = "complete: " + targetCmd + ": no completion specification" + System.lineSeparator();
-                    
+                    if (completionRegistry.containsKey(targetCmd)) {
+                        String path = completionRegistry.get(targetCmd);
+                        result = "complete -C '" + path + "' " + targetCmd + System.lineSeparator();
+                    } else {
+                        result = "complete: " + targetCmd + ": no completion specification" + System.lineSeparator();
+                    }
+                }
+
+                if (result != null) {
                     if (stdoutFile != null) {
                         try (FileOutputStream fos = new FileOutputStream(stdoutFile, appendStdout)) {
                             fos.write(result.getBytes());
