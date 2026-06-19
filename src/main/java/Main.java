@@ -72,7 +72,6 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        // Stage #ne7: Add "complete" to the list of known shell builtins
         String[] builtins = {"echo", "exit", "type", "complete"};
 
         while (true) {
@@ -82,7 +81,6 @@ public class Main {
             StringBuilder inputBuilder = new StringBuilder();
             int consecutiveTabs = 0;
 
-            // Set terminal into raw mode safely
             String[] setRaw = {"stty", "-icanon", "-echo", "min", "1", "-F", "/dev/tty"};
             Runtime.getRuntime().exec(setRaw).waitFor();
 
@@ -96,7 +94,6 @@ public class Main {
 
                 char c = (char) readByte;
 
-                // Handle Enter Key (Newline)
                 if (c == '\n' || c == '\r') {
                     consecutiveTabs = 0;
                     String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
@@ -105,7 +102,6 @@ public class Main {
                     break;
                 }
 
-                // Handle Tab Autocompletion
                 else if (c == '\t') {
                     consecutiveTabs++;
                     String currentInput = inputBuilder.toString();
@@ -152,14 +148,12 @@ public class Main {
                         } else {
                             partialToken = currentInput;
                             matchPrefix = currentInput;
-                            // Check builtins
                             for (String builtin : builtins) {
                                 if (builtin.startsWith(matchPrefix)) {
                                     candidatesSet.add(builtin);
                                 }
                             }
                             
-                            // Check PATH
                             String pathEnv = System.getenv("PATH");
                             if (pathEnv != null) {
                                 String[] paths = pathEnv.split(File.pathSeparator);
@@ -193,6 +187,7 @@ public class Main {
                                 }
                             }
                             
+                            // FIX: Only print out characters that aren't already typed in the matchPrefix context
                             String completedText = matched.substring(matchPrefix.length()) + suffix;
                             inputBuilder.append(completedText);
                             System.out.print(completedText);
@@ -240,7 +235,6 @@ public class Main {
                     }
                 }
 
-                // Handle Backspace
                 else if (readByte == 127 || c == '\b') {
                     consecutiveTabs = 0;
                     if (inputBuilder.length() > 0) {
@@ -250,7 +244,6 @@ public class Main {
                     }
                 }
 
-                // Handle Regular Characters
                 else {
                     consecutiveTabs = 0;
                     inputBuilder.append(c);
@@ -271,7 +264,6 @@ public class Main {
             boolean appendStdout = false;
             boolean appendStderr = false;
 
-            // Handle Redirections
             for (int i = 0; i < parts.size(); i++) {
                 String token = parts.get(i);
                 if (token.equals(">") || token.equals("1>")) {
@@ -339,13 +331,12 @@ public class Main {
                 String cmd = parts.get(1);
                 String result;
 
-                // Stage #ne7: Ensure "complete" evaluates to a shell builtin string match
                 if (cmd.equals("echo") || cmd.equals("exit") || cmd.equals("type") || cmd.equals("complete")) {
                     result = cmd + " is a shell builtin";
                 } else {
                     result = cmd + ": not found";
-                    String[] paths = System.getenv("PATH").split(File.pathSeparator);
-                    for (String dir : paths) {
+                    String[] pathsList = System.getenv("PATH").split(File.pathSeparator);
+                    for (String dir : pathsList) {
                         File file = new File(dir, cmd);
                         if (file.exists() && file.canExecute()) {
                             result = cmd + " is " + file.getAbsolutePath();
@@ -370,15 +361,13 @@ public class Main {
                 continue;
             }
             
-            // Placeholder execution path for calling complete (no behavior needed for this stage)
             else if (command.equals("complete")) {
                 continue;
             }
 
-            // Route External Processes
             boolean foundExecutable = false;
-            String[] paths = System.getenv("PATH").split(File.pathSeparator);
-            for (String dir : paths) {
+            String[] pathsList = System.getenv("PATH").split(File.pathSeparator);
+            for (String dir : pathsList) {
                 File file = new File(dir, command);
                 if (file.exists() && file.canExecute()) {
                     foundExecutable = true;
