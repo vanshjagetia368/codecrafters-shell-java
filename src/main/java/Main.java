@@ -178,7 +178,6 @@ public class Main {
                                     consecutiveTabs = 0;
                                 } 
                                 else {
-                                    // Handle multiple programmable completion options with LCP
                                     String lcp = findLongestCommonPrefix(scriptCandidates);
                                     
                                     if (lcp.length() > argv2.length()) {
@@ -467,6 +466,10 @@ public class Main {
                     String targetCmd = parts.get(3);
                     completionRegistry.put(targetCmd, scriptPath);
                 } 
+                else if (parts.size() >= 3 && parts.get(1).equals("-r")) {
+                    String targetCmd = parts.get(2);
+                    completionRegistry.remove(targetCmd);
+                }
                 else if (parts.size() >= 3 && parts.get(1).equals("-p")) {
                     String targetCmd = parts.get(2);
                     if (completionRegistry.containsKey(targetCmd)) {
