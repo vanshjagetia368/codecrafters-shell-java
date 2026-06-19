@@ -113,27 +113,47 @@ public class Main {
                         Set<String> candidatesSet = new LinkedHashSet<>();
                         boolean isArgumentCompletion = currentInput.contains(" ");
                         String partialToken = "";
+                        String matchPrefix = "";
 
                         if (isArgumentCompletion) {
-                            // Extract text following the last space
                             int lastSpaceIdx = currentInput.lastIndexOf(' ');
                             partialToken = currentInput.substring(lastSpaceIdx + 1);
                             
-                            // Scan the current directory for filename matches
-                            File currentDir = new File(".");
-                            File[] files = currentDir.listFiles();
-                            if (files != null) {
-                                for (File file : files) {
-                                    if (file.getName().startsWith(partialToken)) {
-                                        candidatesSet.add(file.getName());
+                            // Check if dealing with a nested path string
+                            if (partialToken.contains("/")) {
+                                int lastSlashIdx = partialToken.lastIndexOf('/');
+                                String dirPath = partialToken.substring(0, lastSlashIdx + 1);
+                                matchPrefix = partialToken.substring(lastSlashIdx + 1);
+                                
+                                File targetDir = new File(dirPath);
+                                if (targetDir.exists() && targetDir.isDirectory()) {
+                                    File[] files = targetDir.listFiles();
+                                    if (files != null) {
+                                        for (File file : files) {
+                                            if (file.getName().startsWith(matchPrefix)) {
+                                                candidatesSet.add(file.getName());
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                matchPrefix = partialToken;
+                                File currentDir = new File(".");
+                                File[] files = currentDir.listFiles();
+                                if (files != null) {
+                                    for (File file : files) {
+                                        if (file.getName().startsWith(matchPrefix)) {
+                                            candidatesSet.add(file.getName());
+                                        }
                                     }
                                 }
                             }
                         } else {
                             partialToken = currentInput;
+                            matchPrefix = currentInput;
                             // Check builtins
                             for (String builtin : builtins) {
-                                if (builtin.startsWith(partialToken)) {
+                                if (builtin.startsWith(matchPrefix)) {
                                     candidatesSet.add(builtin);
                                 }
                             }
@@ -148,7 +168,7 @@ public class Main {
                                         File[] files = dir.listFiles();
                                         if (files != null) {
                                             for (File file : files) {
-                                                if (file.isFile() && file.canExecute() && file.getName().startsWith(partialToken)) {
+                                                if (file.isFile() && file.canExecute() && file.getName().startsWith(matchPrefix)) {
                                                     candidatesSet.add(file.getName());
                                                 }
                                             }
@@ -163,7 +183,7 @@ public class Main {
 
                         if (candidates.size() == 1) {
                             String matched = candidates.get(0);
-                            String completedText = matched.substring(partialToken.length()) + " ";
+                            String completedText = matched.substring(matchPrefix.length()) + " ";
                             inputBuilder.append(completedText);
                             System.out.print(completedText);
                             System.out.flush();
@@ -172,8 +192,8 @@ public class Main {
                         else if (candidates.size() > 1) {
                             String lcp = findLongestCommonPrefix(candidates);
                             
-                            if (lcp.length() > partialToken.length()) {
-                                String completedText = lcp.substring(partialToken.length());
+                            if (lcp.length() > matchPrefix.length()) {
+                                String completedText = lcp.substring(matchPrefix.length());
                                 inputBuilder.append(completedText);
                                 System.out.print(completedText);
                                 System.out.flush();
