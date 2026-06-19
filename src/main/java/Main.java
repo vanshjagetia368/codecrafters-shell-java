@@ -3,6 +3,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+
 public class Main {
     private static List<String> parseCommand(String input) {
     List<String> args = new ArrayList<>();
@@ -95,26 +96,39 @@ public class Main {
 
     else if (command.equals("echo")) {
 
-        int redirectIndex = -1;
+    String stderrFile = null;
+    int redirectIndex = -1;
 
-        for (int i = 1; i < parts.size(); i++) {
-            if (parts.get(i).equals("2>")) {
-                redirectIndex = i;
-                break;
+    for (int i = 1; i < parts.size(); i++) {
+        if (parts.get(i).equals("2>")) {
+            redirectIndex = i;
+
+            if (i + 1 < parts.size()) {
+                stderrFile = parts.get(i + 1);
             }
+            break;
         }
-
-        StringBuilder output = new StringBuilder();
-
-        int limit = redirectIndex == -1 ? parts.size() : redirectIndex;
-
-        for (int i = 1; i < limit; i++) {
-            if (i > 1) output.append(" ");
-            output.append(parts.get(i));
-        }
-
-        System.out.println(output);
     }
+
+    StringBuilder output = new StringBuilder();
+
+    int limit = redirectIndex == -1 ? parts.size() : redirectIndex;
+
+    for (int i = 1; i < limit; i++) {
+        if (i > 1) output.append(" ");
+        output.append(parts.get(i));
+    }
+
+    System.out.println(output);
+
+    // Create/truncate stderr file even if echo produces no stderr
+    if (stderrFile != null) {
+        try {
+            new java.io.FileOutputStream(stderrFile).close();
+        } catch (Exception ignored) {
+        }
+    }
+}
 
     else if (command.equals("type")) {
 
