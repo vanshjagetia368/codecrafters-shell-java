@@ -95,7 +95,7 @@ public class Main {
 
     /**
      * Reaps any completed background jobs, prints their 'Done' status, 
-     * and purges them from the active jobs table.
+     * and purges them from the active jobs table. Used before printing prompts.
      */
     private static void reapJobs() {
         int totalJobs = backgroundJobs.size();
@@ -115,7 +115,6 @@ public class Main {
                     marker = '-';
                 }
 
-                // CodeCrafters format expectation: '[id]marker  Status                 command'
                 System.out.printf("[%d]%c  %-24s%s%n", job.id, marker, job.status, job.command);
                 System.out.flush();
             }
@@ -464,7 +463,7 @@ public class Main {
             String command = parts.get(0);
 
             if (command.equals("exit")) {
-                // Restore terminal sanity settings right before terminating
+                // Restore terminal configurations right before terminating
                 String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
                 Runtime.getRuntime().exec(setCooked).waitFor();
                 break;
@@ -564,12 +563,19 @@ public class Main {
             }
 
             else if (command.equals("jobs")) {
-                // Run the shared reaping cleanup logic first
-                reapJobs();
-
                 StringBuilder jobsOutput = new StringBuilder();
                 int totalJobs = backgroundJobs.size();
+                List<Job> jobsToRemove = new ArrayList<>();
 
+                // 1. Tag completed entries before printing to ensure precise indexing logic remains safe
+                for (Job job : backgroundJobs) {
+                    if (!job.process.isAlive()) {
+                        job.status = "Done";
+                        jobsToRemove.add(job);
+                    }
+                }
+
+                // 2. Output all jobs in sequential chronological order (Job ID sorting order)
                 for (int i = 0; i < totalJobs; i++) {
                     Job job = backgroundJobs.get(i);
 
@@ -580,11 +586,13 @@ public class Main {
                         marker = '-';
                     }
                     
-                    // Running tasks must end with " &"
-                    String commandStr = job.command + " &";
+                    String commandStr = job.status.equals("Running") ? job.command + " &" : job.command;
                     jobsOutput.append(String.format("[%d]%c  %-24s%s", job.id, marker, job.status, commandStr))
                               .append(System.lineSeparator());
                 }
+
+                // 3. Purge finished processes out of global list now that output sequence concluded
+                backgroundJobs.removeAll(jobsToRemove);
 
                 String outText = jobsOutput.toString();
                 if (stdoutFile != null) {
@@ -615,10 +623,10 @@ public class Main {
                 continue;
             }
 
-            // Capture raw arguments exactly as given for tracking output formatting
+            // Capture raw user arguments sequence for shell format presentation strings
             String rawCommandText = String.join(" ", parts);
 
-            // Mutate command to absolute system path safely for execution mechanics
+            // Set to absolute system path to bypass process environment execution quirks
             parts.set(0, executableFile.getAbsolutePath());
 
             try {
