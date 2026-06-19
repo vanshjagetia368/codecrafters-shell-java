@@ -265,39 +265,43 @@ public class Main {
 
         try {
 
-            ProcessBuilder pb =
-                    new ProcessBuilder(parts);
+    ProcessBuilder pb = new ProcessBuilder(parts);
 
-            if (stdoutFile != null) {
-                pb.redirectOutput(new File(stdoutFile));
-            }
+    if (stdoutFile != null) {
+        pb.redirectOutput(new File(stdoutFile));
+    }
 
-            if (stderrFile != null) {
-                pb.redirectError(new File(stderrFile));
-            }
+    if (stderrFile != null) {
+        pb.redirectError(new File(stderrFile));
+    }
 
-            Process process = pb.start();
+    Process process = pb.start();
 
-            if (stdoutFile == null) {
+    // Print stdout only when not redirected
+    if (stdoutFile == null) {
+        InputStream stdout = process.getInputStream();
 
-                InputStream stdout =
-                        process.getInputStream();
-
-                int ch;
-
-                while ((ch = stdout.read()) != -1) {
-                    System.out.print((char) ch);
-                }
-            }
-
-            process.waitFor();
-
-        } catch (Exception e) {
-
-            System.out.println(
-                    command + ": command not found"
-            );
+        int ch;
+        while ((ch = stdout.read()) != -1) {
+            System.out.print((char) ch);
         }
+    }
+
+    // Print stderr only when not redirected
+    if (stderrFile == null) {
+        InputStream stderr = process.getErrorStream();
+
+        int ch;
+        while ((ch = stderr.read()) != -1) {
+            System.err.print((char) ch);
+        }
+    }
+
+    process.waitFor();
+
+} catch (Exception e) {
+    System.out.println(command + ": command not found");
+}
     }
 
     scanner.close();
