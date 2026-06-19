@@ -2,6 +2,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -66,8 +67,9 @@ public class Main {
             System.out.flush();
 
             StringBuilder inputBuilder = new StringBuilder();
+            int consecutiveTabs = 0;
 
-            // Put terminal into raw mode to catch single character inputs instantly
+            // Set terminal into raw mode
             String[] setRaw = {"/bin/sh", "-c", "stty -icanon -echo min 1 < /dev/tty"};
             Runtime.getRuntime().exec(setRaw).waitFor();
 
@@ -81,8 +83,9 @@ public class Main {
 
                 char c = (char) readByte;
 
-                // Handle Enter Key
+                // Handle Enter Key (Newline)
                 if (c == '\n' || c == '\r') {
+                    consecutiveTabs = 0;
                     String[] setCooked = {"/bin/sh", "-c", "stty sane < /dev/tty"};
                     Runtime.getRuntime().exec(setCooked).waitFor();
                     System.out.println();
@@ -91,17 +94,20 @@ public class Main {
 
                 // Handle Tab Autocompletion
                 else if (c == '\t') {
+                    consecutiveTabs++;
                     String currentInput = inputBuilder.toString();
                     
                     if (!currentInput.contains(" ") && !currentInput.isEmpty()) {
-                        Set<String> candidates = new LinkedHashSet<>();
+                        Set<String> candidatesSet = new LinkedHashSet<>();
                         
+                        // Check builtins
                         for (String builtin : builtins) {
                             if (builtin.startsWith(currentInput)) {
-                                candidates.add(builtin);
+                                candidatesSet.add(builtin);
                             }
                         }
                         
+                        // Check PATH
                         String pathEnv = System.getenv("PATH");
                         if (pathEnv != null) {
                             String[] paths = pathEnv.split(File.pathSeparator);
@@ -112,7 +118,7 @@ public class Main {
                                     if (files != null) {
                                         for (File file : files) {
                                             if (file.isFile() && file.canExecute() && file.getName().startsWith(currentInput)) {
-                                                candidates.add(file.getName());
+                                                candidatesSet.add(file.getName());
                                             }
                                         }
                                     }
@@ -120,25 +126,47 @@ public class Main {
                             }
                         }
 
+                        List<String> candidates = new ArrayList<>(candidatesSet);
+                        Collections.sort(candidates);
+
                         if (candidates.size() == 1) {
-                            String matched = candidates.iterator().next();
+                            String matched = candidates.get(0);
                             String completedText = matched.substring(currentInput.length()) + " ";
                             inputBuilder.append(completedText);
-                            
                             System.out.print(completedText);
                             System.out.flush();
+                            consecutiveTabs = 0; // Reset as auto-complete successfully filled the block
+                        } 
+                        else if (candidates.size() > 1) {
+                            if (consecutiveTabs == 1) {
+                                // First Tab -> Ring bell
+                                System.out.print("\u0007");
+                                System.out.flush();
+                            } else if (consecutiveTabs >= 2) {
+                                // Second Tab -> Print options out horizontally
+                                System.out.println(); 
+                                System.out.println(String.join("  ", candidates));
+                                
+                                // Re-render prompt and context
+                                System.out.print("$ " + currentInput);
+                                System.out.flush();
+                            }
                         } else {
+                            // No completions
                             System.out.print("\u0007");
                             System.out.flush();
+                            consecutiveTabs = 0;
                         }
                     } else {
                         System.out.print("\u0007");
                         System.out.flush();
+                        consecutiveTabs = 0;
                     }
                 }
 
                 // Handle Backspace
                 else if (readByte == 127 || c == '\b') {
+                    consecutiveTabs = 0;
                     if (inputBuilder.length() > 0) {
                         inputBuilder.deleteCharAt(inputBuilder.length() - 1);
                         System.out.print("\b \b");
@@ -146,8 +174,9 @@ public class Main {
                     }
                 }
 
-                // Handle Regular Printable Characters
+                // Handle Regular Characters
                 else {
+                    consecutiveTabs = 0;
                     inputBuilder.append(c);
                     System.out.print(c);
                     System.out.flush();
@@ -221,7 +250,6 @@ public class Main {
                     System.out.print(result);
                 }
 
-                // FIX: Guarantee the requested stderr file is actually materialized on disk
                 if (stderrFile != null) {
                     try (FileOutputStream fos = new FileOutputStream(stderrFile, appendStderr)) {
                         fos.flush();
@@ -257,7 +285,6 @@ public class Main {
                     System.out.println(result);
                 }
 
-                // FIX: Guarantee the requested stderr file is actually materialized on disk
                 if (stderrFile != null) {
                     try (FileOutputStream fos = new FileOutputStream(stderrFile, appendStderr)) {
                         fos.flush();
