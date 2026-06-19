@@ -120,7 +120,6 @@ public class Main {
                             String baseCmd = tempParts.get(0);
                             String scriptPath = completionRegistry.get(baseCmd);
                             
-                            // Stage #zi0: Compute contextual args for the script execution hook
                             String argv1 = baseCmd;
                             String argv2 = "";
                             String argv3 = "";
@@ -146,6 +145,12 @@ public class Main {
                                 cmdList.add(argv3);
 
                                 ProcessBuilder pb = new ProcessBuilder(cmdList);
+                                
+                                // Stage #nr7: Pass completion parameters context as transient environment values
+                                Map<String, String> env = pb.environment();
+                                env.put("COMP_LINE", currentInput);
+                                env.put("COMP_POINT", String.valueOf(currentInput.getBytes().length));
+
                                 Process process = pb.start();
                                 process.waitFor();
                                 
@@ -153,7 +158,6 @@ public class Main {
                                     String line = reader.readLine();
                                     if (line != null && !line.trim().isEmpty()) {
                                         String candidate = line.trim();
-                                        // Replace only what the user was currently typing (the remainder)
                                         String suffix = candidate.substring(argv2.length()) + " ";
                                         
                                         inputBuilder.append(suffix);
