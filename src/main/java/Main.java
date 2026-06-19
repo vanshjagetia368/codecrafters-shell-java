@@ -626,11 +626,12 @@ public class Main {
             // Capture raw user arguments sequence for shell format presentation strings
             String rawCommandText = String.join(" ", parts);
 
-            // Set to absolute system path to bypass process environment execution quirks
-            parts.set(0, executableFile.getAbsolutePath());
-
             try {
-                ProcessBuilder pb = new ProcessBuilder(parts);
+                // Fix for Stage #IP1: Keep original program name in argv[0] intact
+                List<String> executionArgs = new ArrayList<>(parts);
+                executionArgs.set(0, executableFile.getAbsolutePath());
+
+                ProcessBuilder pb = new ProcessBuilder(executionArgs);
                 
                 if (stdoutFile != null) {
                     pb.redirectOutput(appendStdout ? ProcessBuilder.Redirect.appendTo(new File(stdoutFile)) : ProcessBuilder.Redirect.to(new File(stdoutFile)));
