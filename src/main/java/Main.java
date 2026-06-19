@@ -32,7 +32,7 @@ public class Main {
 
     private static final Map<String, String> completionRegistry = new HashMap<>();
     private static final List<Job> backgroundJobs = new ArrayList<>();
-    private static final String[] builtins = {"echo", "exit", "type", "complete", "jobs", "pwd"};
+    private static final String[] builtins = {"echo", "exit", "type", "complete", "jobs", "pwd", "cd"};
     
     private static String findLongestCommonPrefix(List<String> strs) {
         if (strs == null || strs.isEmpty()) return "";
@@ -201,6 +201,19 @@ public class Main {
                 outTarget.print(currentDir + System.lineSeparator());
                 outTarget.flush();
             }
+            else if (command.equals("cd")) {
+                if (parts.size() >= 2) {
+                    String pathArg = parts.get(1);
+                    File targetDir = new File(pathArg);
+
+                    if (targetDir.exists() && targetDir.isDirectory()) {
+                        System.setProperty("user.dir", targetDir.getAbsolutePath());
+                    } else {
+                        outTarget.print("cd: " + pathArg + ": No such file or directory" + System.lineSeparator());
+                        outTarget.flush();
+                    }
+                }
+            }
             else if (command.equals("echo")) {
                 StringBuilder output = new StringBuilder();
                 for (int i = 1; i < parts.size(); i++) {
@@ -277,6 +290,9 @@ public class Main {
 
             ProcessBuilder pb = new ProcessBuilder(parts);
             Map<String, String> env = pb.environment();
+            
+            // Sync current runtime working directory to spawned external processes
+            pb.directory(new File(System.getProperty("user.dir")));
             env.put("PATH", executableFile.getParent() + File.pathSeparator + env.getOrDefault("PATH", ""));
 
             if (pipelineIn != System.in) {
@@ -465,7 +481,7 @@ public class Main {
                         boolean isArgumentCompletion = currentInput.contains(" ");
                         String partialToken = "";
                         String matchPrefix = "";
-                        String targetDirPath = "."; 
+                        String targetDirPath = System.getProperty("user.dir"); 
 
                         if (isArgumentCompletion) {
                             int lastSpaceIdx = currentInput.lastIndexOf(' ');
@@ -650,6 +666,7 @@ public class Main {
                                 break;
                             }
                             ProcessBuilder pb = new ProcessBuilder(stage);
+                            pb.directory(new File(System.getProperty("user.dir")));
                             pb.environment().put("PATH", exec.getParent() + File.pathSeparator + pb.environment().getOrDefault("PATH", ""));
                             pb.redirectError(ProcessBuilder.Redirect.INHERIT);
                             builders.add(pb);
