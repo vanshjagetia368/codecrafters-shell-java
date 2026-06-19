@@ -72,7 +72,8 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        String[] builtins = {"echo", "exit", "type"};
+        // Stage #ne7: Add "complete" to the list of known shell builtins
+        String[] builtins = {"echo", "exit", "type", "complete"};
 
         while (true) {
             System.out.print("$ ");
@@ -117,7 +118,6 @@ public class Main {
                         String targetDirPath = "."; 
 
                         if (isArgumentCompletion) {
-                            // Extract the exact partial token following the last space character
                             int lastSpaceIdx = currentInput.lastIndexOf(' ');
                             partialToken = currentInput.substring(lastSpaceIdx + 1);
                             
@@ -339,7 +339,8 @@ public class Main {
                 String cmd = parts.get(1);
                 String result;
 
-                if (cmd.equals("echo") || cmd.equals("exit") || cmd.equals("type")) {
+                // Stage #ne7: Ensure "complete" evaluates to a shell builtin string match
+                if (cmd.equals("echo") || cmd.equals("exit") || cmd.equals("type") || cmd.equals("complete")) {
                     result = cmd + " is a shell builtin";
                 } else {
                     result = cmd + ": not found";
@@ -366,6 +367,11 @@ public class Main {
                         fos.flush();
                     }
                 }
+                continue;
+            }
+            
+            // Placeholder execution path for calling complete (no behavior needed for this stage)
+            else if (command.equals("complete")) {
                 continue;
             }
 
