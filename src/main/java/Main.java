@@ -185,10 +185,9 @@ public class Main {
         }
 
         if (isBuiltinCmd(command)) {
-            // CRITICAL FIX: Materialize target error files for built-ins if stderr redirection is used
             if (stderrFile != null) {
                 try (FileOutputStream fos = new FileOutputStream(stderrFile, appendStderr)) {
-                    // Touch file to create it empty
+                    // Touches/initializes target error redirection targets for built-ins
                 }
             }
 
@@ -608,75 +607,82 @@ public class Main {
 
             String rawCommandText = String.join(" ", parts);
 
+            // --- REFACTORED ARBITRARY MULTI-STAGE PIPELINE EVALUATION ---
             int pipeIdx = parts.indexOf("|");
             if (pipeIdx != -1) {
-                List<String> firstCmdParts = new ArrayList<>(parts.subList(0, pipeIdx));
-                List<String> secondCmdParts = new ArrayList<>(parts.subList(pipeIdx + 1, parts.size()));
-                
-                if (firstCmdParts.isEmpty() || secondCmdParts.isEmpty()) continue;
-
-                String firstCmd = firstCmdParts.get(0);
-                String secondCmd = secondCmdParts.get(0);
-
                 try {
-                    if (isBuiltinCmd(firstCmd)) {
-                        ByteArrayOutputStream pipelinePipe = new ByteArrayOutputStream();
-                        PrintStream pipePrintStream = new PrintStream(pipelinePipe);
-
-                        executeCommandBlock(firstCmdParts, System.in, pipePrintStream, false, "");
-                        pipePrintStream.flush();
-
-                        InputStream pipeInputStream = new java.io.ByteArrayInputStream(pipelinePipe.toByteArray());
-                        executeCommandBlock(secondCmdParts, pipeInputStream, System.out, false, "");
-                    } 
-                    else if (isBuiltinCmd(secondCmd)) {
-                        File exec1 = findExecutable(firstCmdParts.get(0));
-                        if (exec1 == null) {
-                            System.out.println(firstCmdParts.get(0) + ": command not found");
-                            continue;
+                    List<List<String>> pipelineStages = new ArrayList<>();
+                    List<String> currentStage = new ArrayList<>();
+                    for (String part : parts) {
+                        if (part.equals("|")) {
+                            if (!currentStage.isEmpty()) {
+                                pipelineStages.add(currentStage);
+                                currentStage = new ArrayList<>();
+                            }
+                        } else {
+                            currentStage.add(part);
                         }
-
-                        ProcessBuilder pb1 = new ProcessBuilder(firstCmdParts);
-                        pb1.environment().put("PATH", exec1.getParent() + File.pathSeparator + pb1.environment().getOrDefault("PATH", ""));
-                        pb1.redirectOutput(ProcessBuilder.Redirect.PIPE);
-                        pb1.redirectError(ProcessBuilder.Redirect.INHERIT);
-
-                        Process p1 = pb1.start();
-                        
-                        try (InputStream pipeIn = p1.getInputStream()) {
-                            executeCommandBlock(secondCmdParts, pipeIn, System.out, false, "");
-                        }
-                        p1.waitFor();
                     }
-                    else {
-                        File exec1 = findExecutable(firstCmdParts.get(0));
-                        File exec2 = findExecutable(secondCmdParts.get(0));
+                    if (!currentStage.isEmpty()) {
+                        pipelineStages.add(currentStage);
+                    }
 
-                        if (exec1 == null || exec2 == null) {
-                            if (exec1 == null) System.out.println(firstCmdParts.get(0) + ": command not found");
-                            if (exec2 == null) System.out.println(secondCmdParts.get(0) + ": command not found");
-                            continue;
+                    boolean hasBuiltin = false;
+                    for (List<String> stage : pipelineStages) {
+                        if (!stage.isEmpty() && isBuiltinCmd(stage.get(0))) {
+                            hasBuiltin = true;
+                            break;
+                        }
+                    }
+
+                    if (!hasBuiltin) {
+                        List<ProcessBuilder> builders = new ArrayList<>();
+                        for (List<String> stage : pipelineStages) {
+                            String cmd = stage.get(0);
+                            File exec = findExecutable(cmd);
+                            if (exec == null) {
+                                System.out.println(cmd + ": command not found");
+                                builders = null;
+                                break;
+                            }
+                            ProcessBuilder pb = new ProcessBuilder(stage);
+                            pb.environment().put("PATH", exec.getParent() + File.pathSeparator + pb.environment().getOrDefault("PATH", ""));
+                            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+                            builders.add(pb);
                         }
 
-                        ProcessBuilder pb1 = new ProcessBuilder(firstCmdParts);
-                        pb1.environment().put("PATH", exec1.getParent() + File.pathSeparator + pb1.environment().getOrDefault("PATH", ""));
+                        if (builders != null && !builders.isEmpty()) {
+                            builders.get(builders.size() - 1).redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                            List<Process> processes = ProcessBuilder.startPipeline(builders);
+                            processes.get(processes.size() - 1).waitFor();
+                        }
+                    } else {
+                        InputStream currentIn = System.in;
+                        for (int i = 0; i < pipelineStages.size(); i++) {
+                            List<String> stage = pipelineStages.get(i);
+                            boolean isLast = (i == pipelineStages.size() - 1);
 
-                        ProcessBuilder pb2 = new ProcessBuilder(secondCmdParts);
-                        pb2.environment().put("PATH", exec2.getParent() + File.pathSeparator + pb2.environment().getOrDefault("PATH", ""));
-                        
-                        pb2.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-                        pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
-
-                        List<Process> processes = ProcessBuilder.startPipeline(List.of(pb1, pb2));
-                        processes.get(processes.size() - 1).waitFor();
+                            if (isLast) {
+                                executeCommandBlock(stage, currentIn, System.out, false, "");
+                            } else {
+                                ByteArrayOutputStream nextOutStream = new ByteArrayOutputStream();
+                                PrintStream printTarget = new PrintStream(nextOutStream);
+                                
+                                executeCommandBlock(stage, currentIn, printTarget, false, "");
+                                printTarget.flush();
+                                
+                                currentIn = new java.io.ByteArrayInputStream(nextOutStream.toByteArray());
+                            }
+                        }
                     }
-                } catch (Exception e) { /* Handle Fallbacks */ }
+                } catch (Exception e) { /* Safely handle faults */ }
                 continue;
             }
+            // --- END PIPELINE HANDLING ---
 
             try {
                 executeCommandBlock(parts, System.in, System.out, isBackgroundJob, rawCommandText);
-            } catch (Exception e) { /* Handle safely */ }
+            } catch (Exception e) { /* Safety catch */ }
         }
     }
 }
