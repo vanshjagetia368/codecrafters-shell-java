@@ -253,55 +253,60 @@ public class Main {
 
         try {
 
-            ProcessBuilder pb =
-                    new ProcessBuilder(parts);
+    ProcessBuilder pb = new ProcessBuilder(parts);
 
-            if (stdoutFile != null) {
+    if (stdoutFile != null) {
 
-                if (appendStdout) {
-
-                    pb.redirectOutput(
-                            ProcessBuilder.Redirect.appendTo(
-                                    new File(stdoutFile)
-                            )
-                    );
-
-                } else {
-
-                    pb.redirectOutput(
-                            ProcessBuilder.Redirect.to(
-                                    new File(stdoutFile)
-                            )
-                    );
-                }
-            }
-
-            if (stderrFile != null) {
-                pb.redirectError(new File(stderrFile));
-            }
-
-            Process process = pb.start();
-
-            if (stdoutFile == null) {
-
-                InputStream stdout =
-                        process.getInputStream();
-
-                int ch;
-
-                while ((ch = stdout.read()) != -1) {
-                    System.out.print((char) ch);
-                }
-            }
-
-            process.waitFor();
-
-        } catch (Exception e) {
-
-            System.out.println(command + ": command not found");
+        if (appendStdout) {
+            pb.redirectOutput(
+                ProcessBuilder.Redirect.appendTo(
+                    new File(stdoutFile)
+                )
+            );
+        } else {
+            pb.redirectOutput(
+                ProcessBuilder.Redirect.to(
+                    new File(stdoutFile)
+                )
+            );
         }
     }
 
+    if (stderrFile != null) {
+        pb.redirectError(new File(stderrFile));
+    }
+
+    Process process = pb.start();
+
+    // Print stdout only when not redirected
+    if (stdoutFile == null) {
+
+        InputStream stdout = process.getInputStream();
+
+        int ch;
+        while ((ch = stdout.read()) != -1) {
+            System.out.print((char) ch);
+        }
+    }
+
+    // Print stderr only when not redirected
+    if (stderrFile == null) {
+
+        InputStream stderr = process.getErrorStream();
+
+        int ch;
+        while ((ch = stderr.read()) != -1) {
+            System.out.print((char) ch);
+        }
+    }
+
+    process.waitFor();
+
+} catch (Exception e) {
+
+    System.out.println(command + ": command not found");
+}
     scanner.close();
 }
+    }
 }
