@@ -32,7 +32,7 @@ public class Main {
 
     private static final Map<String, String> completionRegistry = new HashMap<>();
     private static final List<Job> backgroundJobs = new ArrayList<>();
-    private static final String[] builtins = {"echo", "exit", "type", "complete", "jobs"};
+    private static final String[] builtins = {"echo", "exit", "type", "complete", "jobs", "pwd"};
     
     private static String findLongestCommonPrefix(List<String> strs) {
         if (strs == null || strs.isEmpty()) return "";
@@ -195,6 +195,11 @@ public class Main {
                 String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
                 Runtime.getRuntime().exec(setCooked).waitFor();
                 System.exit(0);
+            }
+            else if (command.equals("pwd")) {
+                String currentDir = System.getProperty("user.dir");
+                outTarget.print(currentDir + System.lineSeparator());
+                outTarget.flush();
             }
             else if (command.equals("echo")) {
                 StringBuilder output = new StringBuilder();
@@ -607,7 +612,6 @@ public class Main {
 
             String rawCommandText = String.join(" ", parts);
 
-            // --- REFACTORED ARBITRARY MULTI-STAGE PIPELINE EVALUATION ---
             int pipeIdx = parts.indexOf("|");
             if (pipeIdx != -1) {
                 try {
@@ -675,14 +679,13 @@ public class Main {
                             }
                         }
                     }
-                } catch (Exception e) { /* Safely handle faults */ }
+                } catch (Exception e) { /* Handle Pipeline Errors */ }
                 continue;
             }
-            // --- END PIPELINE HANDLING ---
 
             try {
                 executeCommandBlock(parts, System.in, System.out, isBackgroundJob, rawCommandText);
-            } catch (Exception e) { /* Safety catch */ }
+            } catch (Exception e) { /* Handle Command Execution Failures */ }
         }
     }
 }
