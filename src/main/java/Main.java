@@ -260,7 +260,7 @@ public class Main {
         } else {
             File executableFile = findExecutable(command);
             if (executableFile == null) {
-                System.err.println(command + ": command not found");
+                System.out.println(command + ": command not found");
                 return;
             }
 
@@ -588,9 +588,10 @@ public class Main {
                 if (firstCmdParts.isEmpty() || secondCmdParts.isEmpty()) continue;
 
                 String firstCmd = firstCmdParts.get(0);
+                String secondCmd = secondCmdParts.get(0);
 
                 try {
-                    // CRITICAL FIX: If the first command is an internal shell builtin, we MUST use a buffered in-memory stream.
+                    // Scenario A: The first command is a built-in (e.g., echo apple | wc)
                     if (isBuiltinCmd(firstCmd)) {
                         ByteArrayOutputStream pipelinePipe = new ByteArrayOutputStream();
                         PrintStream pipePrintStream = new PrintStream(pipelinePipe);
@@ -601,8 +602,28 @@ public class Main {
                         InputStream pipeInputStream = new java.io.ByteArrayInputStream(pipelinePipe.toByteArray());
                         executeCommandBlock(secondCmdParts, pipeInputStream, System.out);
                     } 
-                    // Otherwise, both are system binaries (e.g. tail -f | head). Use ProcessBuilder.startPipeline 
-                    // so OS descriptors bridge data dynamically without stalling.
+                    // Scenario B: The second command is a built-in (e.g., ls | type exit)
+                    else if (isBuiltinCmd(secondCmd)) {
+                        File exec1 = findExecutable(firstCmdParts.get(0));
+                        if (exec1 == null) {
+                            System.out.println(firstCmdParts.get(0) + ": command not found");
+                            continue;
+                        }
+
+                        ProcessBuilder pb1 = new ProcessBuilder(firstCmdParts);
+                        pb1.environment().put("PATH", exec1.getParent() + File.pathSeparator + pb1.environment().getOrDefault("PATH", ""));
+                        pb1.redirectOutput(ProcessBuilder.Redirect.PIPE);
+                        pb1.redirectError(ProcessBuilder.Redirect.INHERIT);
+
+                        Process p1 = pb1.start();
+                        
+                        // Consume the stream safely from the active background binary
+                        try (InputStream pipeIn = p1.getInputStream()) {
+                            executeCommandBlock(secondCmdParts, pipeIn, System.out);
+                        }
+                        p1.waitFor();
+                    }
+                    // Scenario C: Both commands are external binaries (e.g., tail -f | head)
                     else {
                         File exec1 = findExecutable(firstCmdParts.get(0));
                         File exec2 = findExecutable(secondCmdParts.get(0));
