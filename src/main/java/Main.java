@@ -145,8 +145,6 @@ public class Main {
                                 cmdList.add(argv3);
 
                                 ProcessBuilder pb = new ProcessBuilder(cmdList);
-                                
-                                // Stage #nr7: Pass completion parameters context as transient environment values
                                 Map<String, String> env = pb.environment();
                                 env.put("COMP_LINE", currentInput);
                                 env.put("COMP_POINT", String.valueOf(currentInput.getBytes().length));
@@ -154,23 +152,45 @@ public class Main {
                                 Process process = pb.start();
                                 process.waitFor();
                                 
+                                List<String> scriptCandidates = new ArrayList<>();
                                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                                    String line = reader.readLine();
-                                    if (line != null && !line.trim().isEmpty()) {
-                                        String candidate = line.trim();
-                                        String suffix = candidate.substring(argv2.length()) + " ";
-                                        
-                                        inputBuilder.append(suffix);
-                                        System.out.print(suffix);
-                                        System.out.flush();
-                                        consecutiveTabs = 0;
-                                    } else {
+                                    String line;
+                                    // Stage #ep2: Extract every matching suggestion from the script
+                                    while ((line = reader.readLine()) != null) {
+                                        if (!line.trim().isEmpty()) {
+                                            scriptCandidates.add(line.trim());
+                                        }
+                                    }
+                                }
+
+                                Collections.sort(scriptCandidates);
+
+                                if (scriptCandidates.isEmpty()) {
+                                    System.out.print("\u0007");
+                                    System.out.flush();
+                                    consecutiveTabs = 0;
+                                } 
+                                else if (scriptCandidates.size() == 1) {
+                                    String candidate = scriptCandidates.get(0);
+                                    String suffix = candidate.substring(argv2.length()) + " ";
+                                    inputBuilder.append(suffix);
+                                    System.out.print(suffix);
+                                    System.out.flush();
+                                    consecutiveTabs = 0;
+                                } 
+                                else {
+                                    // Stage #ep2: Branch rules evaluating tab triggers on multiple candidate options
+                                    if (consecutiveTabs == 1) {
                                         System.out.print("\u0007");
                                         System.out.flush();
-                                        consecutiveTabs = 0;
+                                    } else if (consecutiveTabs >= 2) {
+                                        System.out.println();
+                                        System.out.println(String.join("  ", scriptCandidates));
+                                        System.out.print("$ " + currentInput);
+                                        System.out.flush();
                                     }
-                                    continue; 
                                 }
+                                continue; 
                             } catch (Exception e) {
                                 // Fallback
                             }
