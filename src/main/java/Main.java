@@ -69,8 +69,8 @@ public class Main {
             StringBuilder inputBuilder = new StringBuilder();
             int consecutiveTabs = 0;
 
-            // Set terminal into raw mode
-            String[] setRaw = {"/bin/sh", "-c", "stty -icanon -echo min 1 < /dev/tty"};
+            // Set terminal into raw mode safely
+            String[] setRaw = {"stty", "-icanon", "-echo", "min", "1", "-F", "/dev/tty"};
             Runtime.getRuntime().exec(setRaw).waitFor();
 
             InputStream in = System.in;
@@ -86,7 +86,8 @@ public class Main {
                 // Handle Enter Key (Newline)
                 if (c == '\n' || c == '\r') {
                     consecutiveTabs = 0;
-                    String[] setCooked = {"/bin/sh", "-c", "stty sane < /dev/tty"};
+                    // Restore terminal configurations back to standard cooked mode immediately
+                    String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
                     Runtime.getRuntime().exec(setCooked).waitFor();
                     System.out.println();
                     break;
@@ -135,24 +136,19 @@ public class Main {
                             inputBuilder.append(completedText);
                             System.out.print(completedText);
                             System.out.flush();
-                            consecutiveTabs = 0; // Reset as auto-complete successfully filled the block
+                            consecutiveTabs = 0;
                         } 
                         else if (candidates.size() > 1) {
                             if (consecutiveTabs == 1) {
-                                // First Tab -> Ring bell
                                 System.out.print("\u0007");
                                 System.out.flush();
                             } else if (consecutiveTabs >= 2) {
-                                // Second Tab -> Print options out horizontally
                                 System.out.println(); 
                                 System.out.println(String.join("  ", candidates));
-                                
-                                // Re-render prompt and context
                                 System.out.print("$ " + currentInput);
                                 System.out.flush();
                             }
                         } else {
-                            // No completions
                             System.out.print("\u0007");
                             System.out.flush();
                             consecutiveTabs = 0;
@@ -282,7 +278,7 @@ public class Main {
                         fos.write((result + System.lineSeparator()).getBytes());
                     }
                 } else {
-                    System.out.println(result);
+                    System.out.print(result + System.lineSeparator());
                 }
 
                 if (stderrFile != null) {
