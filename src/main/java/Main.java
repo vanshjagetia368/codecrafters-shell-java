@@ -29,7 +29,6 @@ public class Main {
 
     private static final Map<String, String> completionRegistry = new HashMap<>();
     private static final List<Job> backgroundJobs = new ArrayList<>();
-    private static int nextJobId = 1;
     
     private static String findLongestCommonPrefix(List<String> strs) {
         if (strs == null || strs.isEmpty()) return "";
@@ -614,11 +613,8 @@ public class Main {
             String rawCommandText = String.join(" ", parts);
 
             try {
-                // Pass parts completely unmutated so ProcessBuilder uses the short name as argv[0]
                 ProcessBuilder pb = new ProcessBuilder(parts);
                 
-                // Explicitly inject the parent folder of the binary into the child process PATH environment
-                // to make sure ProcessBuilder resolves it without overriding argv[0]
                 Map<String, String> env = pb.environment();
                 String currentPath = env.getOrDefault("PATH", "");
                 env.put("PATH", executableFile.getParent() + File.pathSeparator + currentPath);
@@ -638,11 +634,22 @@ public class Main {
                 Process process = pb.start();
 
                 if (isBackgroundJob) {
-                    System.out.println("[" + nextJobId + "] " + process.pid());
+                    // Implement dynamic Job ID recycling logic here:
+                    int currentJobId = 1;
+                    if (!backgroundJobs.isEmpty()) {
+                        int maxId = 0;
+                        for (Job j : backgroundJobs) {
+                            if (j.id > maxId) {
+                                maxId = j.id;
+                            }
+                        }
+                        currentJobId = maxId + 1;
+                    }
+
+                    System.out.println("[" + currentJobId + "] " + process.pid());
                     System.out.flush();
                     
-                    backgroundJobs.add(new Job(nextJobId, process, rawCommandText, "Running"));
-                    nextJobId++;
+                    backgroundJobs.add(new Job(currentJobId, process, rawCommandText, "Running"));
                 } else {
                     process.waitFor();
                 }
