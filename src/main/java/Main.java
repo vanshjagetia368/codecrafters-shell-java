@@ -78,7 +78,8 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        String[] builtins = {"echo", "exit", "type", "complete"};
+        // Added "jobs" to the builtins array
+        String[] builtins = {"echo", "exit", "type", "complete", "jobs"};
 
         while (true) {
             System.out.print("$ ");
@@ -428,7 +429,8 @@ public class Main {
                 String cmd = parts.get(1);
                 String result;
 
-                if (cmd.equals("echo") || cmd.equals("exit") || cmd.equals("type") || cmd.equals("complete")) {
+                // Included "jobs" inside the type evaluation
+                if (cmd.equals("echo") || cmd.equals("exit") || cmd.equals("type") || cmd.equals("complete") || cmd.equals("jobs")) {
                     result = cmd + " is a shell builtin";
                 } else {
                     result = cmd + ": not found";
@@ -489,6 +491,12 @@ public class Main {
                         System.out.print(result);
                     }
                 }
+                continue;
+            }
+
+            // Added an empty builtin execution path for "jobs"
+            else if (command.equals("jobs")) {
+                // Empty execution intentionally produces no output on success
                 continue;
             }
 
