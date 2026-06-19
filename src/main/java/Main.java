@@ -15,8 +15,8 @@ public class Main {
     
     static class Job {
         int id;
-        Process process; // Store the actual Process handle to track live status
-        String command;  // Base command string (without trailing &)
+        Process process; 
+        String command;  
         String status;
 
         public Job(int id, Process process, String command, String status) {
@@ -96,17 +96,28 @@ public class Main {
     public static void main(String[] args) throws Exception {
         String[] builtins = {"echo", "exit", "type", "complete", "jobs"};
 
+        // 1. Configure the terminal raw state ONCE at startup to prevent race conditions
+        String[] setRaw = {"stty", "-icanon", "-echo", "min", "1", "-F", "/dev/tty"};
+        Runtime.getRuntime().exec(setRaw).waitFor();
+
+        // Register a shutdown hook to cleanly restore terminal configurations when exiting
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
+                Runtime.getRuntime().exec(setCooked).waitFor();
+            } catch (Exception e) {
+                // Keep quiet on shutdown
+            }
+        }));
+
+        InputStream in = System.in;
+
         while (true) {
             System.out.print("$ ");
             System.out.flush();
 
             StringBuilder inputBuilder = new StringBuilder();
             int consecutiveTabs = 0;
-
-            String[] setRaw = {"stty", "-icanon", "-echo", "min", "1", "-F", "/dev/tty"};
-            Runtime.getRuntime().exec(setRaw).waitFor();
-
-            InputStream in = System.in;
 
             while (true) {
                 int readByte = in.read();
@@ -118,8 +129,6 @@ public class Main {
 
                 if (c == '\n' || c == '\r') {
                     consecutiveTabs = 0;
-                    String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
-                    Runtime.getRuntime().exec(setCooked).waitFor();
                     System.out.println();
                     break;
                 }
@@ -279,7 +288,7 @@ public class Main {
                                             for (File file : files) {
                                                 if (file.isFile() && file.canExecute() && file.getName().startsWith(matchPrefix)) {
                                                     candidatesSet.add(file.getName());
-                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -421,6 +430,9 @@ public class Main {
             String command = parts.get(0);
 
             if (command.equals("exit")) {
+                // Restore terminal sanity settings right before terminating
+                String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
+                Runtime.getRuntime().exec(setCooked).waitFor();
                 break;
             }
 
@@ -520,14 +532,11 @@ public class Main {
             else if (command.equals("jobs")) {
                 StringBuilder jobsOutput = new StringBuilder();
                 int totalJobs = backgroundJobs.size();
-                
-                // Track exited background tasks to purge them from table right after this call
                 List<Job> jobsToRemove = new ArrayList<>();
 
                 for (int i = 0; i < totalJobs; i++) {
                     Job job = backgroundJobs.get(i);
                     
-                    // Poll child lifecycle condition
                     if (!job.process.isAlive()) {
                         job.status = "Done";
                         jobsToRemove.add(job);
@@ -540,14 +549,11 @@ public class Main {
                         marker = '-';
                     }
                     
-                    // Done states print without a trailing '&' character
                     String commandStr = job.status.equals("Done") ? job.command : job.command + " &";
-                    
                     jobsOutput.append(String.format("[%d]%c  %-24s%s", job.id, marker, job.status, commandStr))
                               .append(System.lineSeparator());
                 }
                 
-                // Reap dead tasks from global table
                 backgroundJobs.removeAll(jobsToRemove);
 
                 String outText = jobsOutput.toString();
