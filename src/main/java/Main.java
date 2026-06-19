@@ -78,7 +78,6 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        // Added "jobs" to the builtins array
         String[] builtins = {"echo", "exit", "type", "complete", "jobs"};
 
         while (true) {
@@ -357,6 +356,16 @@ public class Main {
                 continue;
             }
 
+            // Check if the command should execute asynchronously in the background
+            boolean isBackgroundJob = parts.get(parts.size() - 1).equals("&");
+            if (isBackgroundJob) {
+                parts.remove(parts.size() - 1);
+            }
+
+            if (parts.isEmpty()) {
+                continue;
+            }
+
             String stdoutFile = null;
             String stderrFile = null;
             boolean appendStdout = false;
@@ -429,7 +438,6 @@ public class Main {
                 String cmd = parts.get(1);
                 String result;
 
-                // Included "jobs" inside the type evaluation
                 if (cmd.equals("echo") || cmd.equals("exit") || cmd.equals("type") || cmd.equals("complete") || cmd.equals("jobs")) {
                     result = cmd + " is a shell builtin";
                 } else {
@@ -494,9 +502,7 @@ public class Main {
                 continue;
             }
 
-            // Added an empty builtin execution path for "jobs"
             else if (command.equals("jobs")) {
-                // Empty execution intentionally produces no output on success
                 continue;
             }
 
@@ -531,10 +537,17 @@ public class Main {
                 }
 
                 Process process = pb.start();
-                process.waitFor();
 
-                if (stdoutFile == null) process.getInputStream().transferTo(System.out);
-                if (stderrFile == null) process.getErrorStream().transferTo(System.out);
+                if (isBackgroundJob) {
+                    // For background tasks, print tracking specs and skip waiting
+                    System.out.println("[1] " + process.pid());
+                    System.out.flush();
+                } else {
+                    // Sync block for foreground commands
+                    process.waitFor();
+                    if (stdoutFile == null) process.getInputStream().transferTo(System.out);
+                    if (stderrFile == null) process.getErrorStream().transferTo(System.out);
+                }
             } catch (Exception e) {
                 System.out.println(command + ": command not found");
             }
