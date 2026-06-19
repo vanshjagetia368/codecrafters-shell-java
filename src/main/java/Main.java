@@ -120,18 +120,44 @@ public class Main {
                             String baseCmd = tempParts.get(0);
                             String scriptPath = completionRegistry.get(baseCmd);
                             
+                            // Stage #zi0: Compute contextual args for the script execution hook
+                            String argv1 = baseCmd;
+                            String argv2 = "";
+                            String argv3 = "";
+
+                            if (currentInput.endsWith(" ")) {
+                                argv2 = "";
+                                argv3 = tempParts.get(tempParts.size() - 1);
+                            } else {
+                                if (tempParts.size() >= 2) {
+                                    argv2 = tempParts.get(tempParts.size() - 1);
+                                    argv3 = tempParts.get(tempParts.size() - 2);
+                                } else {
+                                    argv2 = tempParts.get(tempParts.size() - 1);
+                                    argv3 = "";
+                                }
+                            }
+
                             try {
-                                ProcessBuilder pb = new ProcessBuilder(scriptPath);
+                                List<String> cmdList = new ArrayList<>();
+                                cmdList.add(scriptPath);
+                                cmdList.add(argv1);
+                                cmdList.add(argv2);
+                                cmdList.add(argv3);
+
+                                ProcessBuilder pb = new ProcessBuilder(cmdList);
                                 Process process = pb.start();
                                 process.waitFor();
                                 
                                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                                     String line = reader.readLine();
-                                    // Stage #qf1: Handle case when script outputs nothing
                                     if (line != null && !line.trim().isEmpty()) {
-                                        String completionWord = line.trim() + " ";
-                                        inputBuilder.append(completionWord);
-                                        System.out.print(completionWord);
+                                        String candidate = line.trim();
+                                        // Replace only what the user was currently typing (the remainder)
+                                        String suffix = candidate.substring(argv2.length()) + " ";
+                                        
+                                        inputBuilder.append(suffix);
+                                        System.out.print(suffix);
                                         System.out.flush();
                                         consecutiveTabs = 0;
                                     } else {
