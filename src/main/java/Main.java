@@ -13,7 +13,6 @@ import java.util.Set;
 
 public class Main {
     
-    // Simple structural container to maintain background job metadata
     static class Job {
         int id;
         long pid;
@@ -29,7 +28,6 @@ public class Main {
     }
 
     private static final Map<String, String> completionRegistry = new HashMap<>();
-    // Tracks active background tasks globally
     private static final List<Job> backgroundJobs = new ArrayList<>();
     private static int nextJobId = 1;
     
@@ -519,12 +517,22 @@ public class Main {
                 continue;
             }
 
-            // Implement active jobs printing matching format criteria
             else if (command.equals("jobs")) {
                 StringBuilder jobsOutput = new StringBuilder();
-                for (Job job : backgroundJobs) {
-                    // %-24s pads "Running" with right-side spaces to match 24 chars exact width
-                    jobsOutput.append(String.format("[%d]+  %-24s%s", job.id, job.status, job.command))
+                int totalJobs = backgroundJobs.size();
+                
+                for (int i = 0; i < totalJobs; i++) {
+                    Job job = backgroundJobs.get(i);
+                    char marker = ' ';
+                    
+                    if (i == totalJobs - 1) {
+                        marker = '+'; // Most recent
+                    } else if (i == totalJobs - 2) {
+                        marker = '-'; // Second most recent
+                    }
+                    
+                    // Formatted template: [id]<marker>  <status-padded-to-24-spaces><command>
+                    jobsOutput.append(String.format("[%d]%c  %-24s%s", job.id, marker, job.status, job.command))
                               .append(System.lineSeparator());
                 }
                 
@@ -581,7 +589,6 @@ public class Main {
                     System.out.println("[" + nextJobId + "] " + process.pid());
                     System.out.flush();
                     
-                    // Reassemble full original command to maintain exact test syntax output (including trailing &)
                     String commandWithAmpersand = String.join(" ", parts) + " &";
                     backgroundJobs.add(new Job(nextJobId, process.pid(), commandWithAmpersand, "Running"));
                     nextJobId++;
