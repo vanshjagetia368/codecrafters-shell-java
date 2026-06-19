@@ -185,6 +185,13 @@ public class Main {
         }
 
         if (isBuiltinCmd(command)) {
+            // CRITICAL FIX: Materialize target error files for built-ins if stderr redirection is used
+            if (stderrFile != null) {
+                try (FileOutputStream fos = new FileOutputStream(stderrFile, appendStderr)) {
+                    // Touch file to create it empty
+                }
+            }
+
             if (command.equals("exit")) {
                 String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
                 Runtime.getRuntime().exec(setCooked).waitFor();
@@ -290,7 +297,6 @@ public class Main {
             Process process = pb.start();
 
             if (pipelineIn != System.in) {
-                // If pipe mapping handles blocking dynamic streams, pump in background threads
                 Thread pumpThread = new Thread(() -> {
                     try (OutputStream os = process.getOutputStream()) {
                         pipelineIn.transferTo(os);
