@@ -92,7 +92,7 @@ public class Main {
                 else if (c == '\t') {
                     String currentInput = inputBuilder.toString();
                     
-                    // CRITICAL FIX: Only attempt builtin completion if we are typing the first word
+                    // Only attempt builtin completion if we are typing the first word
                     if (!currentInput.contains(" ") && !currentInput.isEmpty()) {
                         String matchedBuiltin = null;
 
@@ -111,12 +111,12 @@ public class Main {
                             System.out.print(completedText);
                             System.out.flush();
                         } else {
-                            // Alert tone if no matching prefix is discovered
+                            // MISSING COMPLETIONS STAGE REQ: Alert bell tone if no matching prefix found
                             System.out.print("\u0007");
                             System.out.flush();
                         }
                     } else {
-                        // If we are already typing arguments, just flash a bell or do nothing for now
+                        // Alert tone if we press tab inside arguments with no completions ready
                         System.out.print("\u0007");
                         System.out.flush();
                     }
@@ -131,7 +131,7 @@ public class Main {
                     }
                 }
 
-                // Handle standard printable characters (including spaces typed by user)
+                // Handle standard printable characters
                 else {
                     inputBuilder.append(c);
                     System.out.print(c);
