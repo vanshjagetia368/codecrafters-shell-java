@@ -178,14 +178,25 @@ public class Main {
                                     consecutiveTabs = 0;
                                 } 
                                 else {
-                                    if (consecutiveTabs == 1) {
-                                        System.out.print("\u0007");
+                                    // Handle multiple programmable completion options with LCP
+                                    String lcp = findLongestCommonPrefix(scriptCandidates);
+                                    
+                                    if (lcp.length() > argv2.length()) {
+                                        String completedText = lcp.substring(argv2.length());
+                                        inputBuilder.append(completedText);
+                                        System.out.print(completedText);
                                         System.out.flush();
-                                    } else if (consecutiveTabs >= 2) {
-                                        System.out.println();
-                                        System.out.println(String.join("  ", scriptCandidates));
-                                        System.out.print("$ " + currentInput);
-                                        System.out.flush();
+                                        consecutiveTabs = 0; 
+                                    } else {
+                                        if (consecutiveTabs == 1) {
+                                            System.out.print("\u0007");
+                                            System.out.flush();
+                                        } else if (consecutiveTabs >= 2) {
+                                            System.out.println();
+                                            System.out.println(String.join("  ", scriptCandidates));
+                                            System.out.print("$ " + currentInput);
+                                            System.out.flush();
+                                        }
                                     }
                                 }
                                 continue; 
