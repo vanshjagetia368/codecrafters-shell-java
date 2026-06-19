@@ -117,6 +117,7 @@ public class Main {
                         String targetDirPath = "."; 
 
                         if (isArgumentCompletion) {
+                            // Extract the exact partial token following the last space character
                             int lastSpaceIdx = currentInput.lastIndexOf(' ');
                             partialToken = currentInput.substring(lastSpaceIdx + 1);
                             
@@ -201,13 +202,12 @@ public class Main {
                         else if (candidates.size() > 1) {
                             String lcp = findLongestCommonPrefix(candidates);
                             
-                            // Check if the computed LCP pushes beyond our current token state
                             if (lcp.length() > matchPrefix.length()) {
                                 String completedText = lcp.substring(matchPrefix.length());
                                 inputBuilder.append(completedText);
                                 System.out.print(completedText);
                                 System.out.flush();
-                                consecutiveTabs = 0; // Reset tab interaction state due to updates
+                                consecutiveTabs = 0; 
                             } else {
                                 if (consecutiveTabs == 1) {
                                     System.out.print("\u0007");
