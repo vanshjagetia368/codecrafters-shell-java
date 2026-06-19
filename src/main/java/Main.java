@@ -1,7 +1,36 @@
 import java.io.File;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 public class Main {
+    private static List<String> parseCommand(String input) {
+        List<String> args = new ArrayList<>();
+
+        StringBuilder current = new StringBuilder();
+        boolean inSingleQuotes = false;
+
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+
+            if (c == '\'') {
+                inSingleQuotes = !inSingleQuotes;
+            } else if (Character.isWhitespace(c) && !inSingleQuotes) {
+                if (current.length() > 0) {
+                    args.add(current.toString());
+                    current.setLength(0);
+                }
+            } else {
+                current.append(c);
+            }
+        }
+
+        if (current.length() > 0) {
+            args.add(current.toString());
+        }
+
+        return args;
+    }
     public static void main(String[] args) throws Exception {
         // TODO: Uncomment the code below to pass the first stage
        Scanner scanner = new Scanner(System.in);
@@ -12,25 +41,40 @@ public class Main {
 
             String input = scanner.nextLine();
 
-            // exit builtin
-            if (input.equals("exit")) {
+            List<String> parts = parseCommand(input);
+
+            if (parts.isEmpty()) {
+                continue;
+            }
+
+            String command = parts.get(0);
+
+            if (command.equals("exit")) {
                 break;
             }
 
-            // echo builtin
-            else if (input.startsWith("echo ")) {
-                System.out.println(input.substring(5));
+            else if (command.equals("echo")) {
+                for (int i = 1; i < parts.size(); i++) {
+                    if (i > 1) {
+                        System.out.print(" ");
+                    }
+                    System.out.print(parts.get(i));
+                }
+                System.out.println();
             }
 
-            // type builtin
-            else if (input.startsWith("type ")) {
-                String command = input.substring(5);
+            else if (command.equals("type")) {
+                if (parts.size() < 2) {
+                    continue;
+                }
 
-                if (command.equals("echo")
-                        || command.equals("exit")
-                        || command.equals("type")) {
+                String cmd = parts.get(1);
 
-                    System.out.println(command + " is a shell builtin");
+                if (cmd.equals("echo") ||
+                    cmd.equals("exit") ||
+                    cmd.equals("type")) {
+
+                    System.out.println(cmd + " is a shell builtin");
                 } else {
                     String pathEnv = System.getenv("PATH");
                     String[] paths = pathEnv.split(File.pathSeparator);
@@ -38,26 +82,22 @@ public class Main {
                     boolean found = false;
 
                     for (String dir : paths) {
-                        File file = new File(dir, command);
+                        File file = new File(dir, cmd);
 
                         if (file.exists() && file.canExecute()) {
-                            System.out.println(command + " is " + file.getAbsolutePath());
+                            System.out.println(cmd + " is " + file.getAbsolutePath());
                             found = true;
                             break;
                         }
                     }
 
                     if (!found) {
-                        System.out.println(command + ": not found");
+                        System.out.println(cmd + ": not found");
                     }
                 }
             }
 
-            // external programs
             else {
-                String[] parts = input.split(" ");
-                String command = parts[0];
-
                 String pathEnv = System.getenv("PATH");
                 String[] paths = pathEnv.split(File.pathSeparator);
 
