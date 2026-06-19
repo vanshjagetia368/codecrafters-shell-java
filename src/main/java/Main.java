@@ -1,6 +1,5 @@
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -334,22 +333,17 @@ public class Main {
                             new File(stderrFile));
                 }
             }
+Process process = pb.start();
 
-            Process process = pb.start();
+process.waitFor();
 
-            if (stdoutFile == null) {
+if (stdoutFile == null) {
+    process.getInputStream().transferTo(System.out);
+}
 
-                InputStream stdout =
-                        process.getInputStream();
-
-                int ch;
-
-                while ((ch = stdout.read()) != -1) {
-                    System.out.print((char) ch);
-                }
-            }
-
-            process.waitFor();
+if (stderrFile == null) {
+    process.getErrorStream().transferTo(System.out);
+}
 
         } catch (Exception e) {
 
