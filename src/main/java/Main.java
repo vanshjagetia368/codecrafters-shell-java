@@ -15,13 +15,13 @@ public class Main {
     
     static class Job {
         int id;
-        long pid;
-        String command;
+        Process process; // Store the actual Process handle to track live status
+        String command;  // Base command string (without trailing &)
         String status;
 
-        public Job(int id, long pid, String command, String status) {
+        public Job(int id, Process process, String command, String status) {
             this.id = id;
-            this.pid = pid;
+            this.process = process;
             this.command = command;
             this.status = status;
         }
@@ -279,7 +279,7 @@ public class Main {
                                             for (File file : files) {
                                                 if (file.isFile() && file.canExecute() && file.getName().startsWith(matchPrefix)) {
                                                     candidatesSet.add(file.getName());
-                                                }
+                                                    }
                                             }
                                         }
                                     }
@@ -521,21 +521,35 @@ public class Main {
                 StringBuilder jobsOutput = new StringBuilder();
                 int totalJobs = backgroundJobs.size();
                 
+                // Track exited background tasks to purge them from table right after this call
+                List<Job> jobsToRemove = new ArrayList<>();
+
                 for (int i = 0; i < totalJobs; i++) {
                     Job job = backgroundJobs.get(i);
-                    char marker = ' ';
                     
+                    // Poll child lifecycle condition
+                    if (!job.process.isAlive()) {
+                        job.status = "Done";
+                        jobsToRemove.add(job);
+                    }
+
+                    char marker = ' ';
                     if (i == totalJobs - 1) {
-                        marker = '+'; // Most recent
+                        marker = '+';
                     } else if (i == totalJobs - 2) {
-                        marker = '-'; // Second most recent
+                        marker = '-';
                     }
                     
-                    // Formatted template: [id]<marker>  <status-padded-to-24-spaces><command>
-                    jobsOutput.append(String.format("[%d]%c  %-24s%s", job.id, marker, job.status, job.command))
+                    // Done states print without a trailing '&' character
+                    String commandStr = job.status.equals("Done") ? job.command : job.command + " &";
+                    
+                    jobsOutput.append(String.format("[%d]%c  %-24s%s", job.id, marker, job.status, commandStr))
                               .append(System.lineSeparator());
                 }
                 
+                // Reap dead tasks from global table
+                backgroundJobs.removeAll(jobsToRemove);
+
                 String outText = jobsOutput.toString();
                 if (stdoutFile != null) {
                     try (FileOutputStream fos = new FileOutputStream(stdoutFile, appendStdout)) {
@@ -589,8 +603,8 @@ public class Main {
                     System.out.println("[" + nextJobId + "] " + process.pid());
                     System.out.flush();
                     
-                    String commandWithAmpersand = String.join(" ", parts) + " &";
-                    backgroundJobs.add(new Job(nextJobId, process.pid(), commandWithAmpersand, "Running"));
+                    String rawCommandText = String.join(" ", parts);
+                    backgroundJobs.add(new Job(nextJobId, process, rawCommandText, "Running"));
                     nextJobId++;
                 } else {
                     process.waitFor();
