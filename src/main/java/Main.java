@@ -356,7 +356,6 @@ public class Main {
                 continue;
             }
 
-            // Check if the command should execute asynchronously in the background
             boolean isBackgroundJob = parts.get(parts.size() - 1).equals("&");
             if (isBackgroundJob) {
                 parts.remove(parts.size() - 1);
@@ -529,24 +528,28 @@ public class Main {
 
             try {
                 ProcessBuilder pb = new ProcessBuilder(parts);
+                
+                // Configure standard output stream routing
                 if (stdoutFile != null) {
                     pb.redirectOutput(appendStdout ? ProcessBuilder.Redirect.appendTo(new File(stdoutFile)) : ProcessBuilder.Redirect.to(new File(stdoutFile)));
+                } else {
+                    pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
                 }
+                
+                // Configure standard error stream routing
                 if (stderrFile != null) {
                     pb.redirectError(appendStderr ? ProcessBuilder.Redirect.appendTo(new File(stderrFile)) : ProcessBuilder.Redirect.to(new File(stderrFile)));
+                } else {
+                    pb.redirectError(ProcessBuilder.Redirect.INHERIT);
                 }
 
                 Process process = pb.start();
 
                 if (isBackgroundJob) {
-                    // For background tasks, print tracking specs and skip waiting
                     System.out.println("[1] " + process.pid());
                     System.out.flush();
                 } else {
-                    // Sync block for foreground commands
                     process.waitFor();
-                    if (stdoutFile == null) process.getInputStream().transferTo(System.out);
-                    if (stderrFile == null) process.getErrorStream().transferTo(System.out);
                 }
             } catch (Exception e) {
                 System.out.println(command + ": command not found");
