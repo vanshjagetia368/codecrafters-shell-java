@@ -115,6 +115,7 @@ public class Main {
                     marker = '-';
                 }
 
+                // CodeCrafters format expectation: '[id]marker  Status                 command'
                 System.out.printf("[%d]%c  %-24s%s%n", job.id, marker, job.status, job.command);
                 System.out.flush();
             }
@@ -579,6 +580,7 @@ public class Main {
                         marker = '-';
                     }
                     
+                    // Running tasks must end with " &"
                     String commandStr = job.command + " &";
                     jobsOutput.append(String.format("[%d]%c  %-24s%s", job.id, marker, job.status, commandStr))
                               .append(System.lineSeparator());
@@ -613,10 +615,10 @@ public class Main {
                 continue;
             }
 
-            // Capture the clean, user-typed raw command string for job tracking BEFORE updating parts[0]
+            // Capture raw arguments exactly as given for tracking output formatting
             String rawCommandText = String.join(" ", parts);
 
-            // Always reference absolute resolved path to bypass execution ambiguities
+            // Mutate command to absolute system path safely for execution mechanics
             parts.set(0, executableFile.getAbsolutePath());
 
             try {
@@ -640,7 +642,6 @@ public class Main {
                     System.out.println("[" + nextJobId + "] " + process.pid());
                     System.out.flush();
                     
-                    // Uses the untampered command string captured earlier
                     backgroundJobs.add(new Job(nextJobId, process, rawCommandText, "Running"));
                     nextJobId++;
                 } else {
