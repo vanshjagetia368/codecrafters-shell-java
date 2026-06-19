@@ -5,33 +5,43 @@ import java.util.List;
 import java.util.Scanner;
 public class Main {
     private static List<String> parseCommand(String input) {
-        List<String> args = new ArrayList<>();
+    List<String> args = new ArrayList<>();
 
-        StringBuilder current = new StringBuilder();
-        boolean inSingleQuotes = false;
+    StringBuilder current = new StringBuilder();
 
-        for (int i = 0; i < input.length(); i++) {
-            char c = input.charAt(i);
+    boolean inSingleQuotes = false;
+    boolean inDoubleQuotes = false;
 
-            if (c == '\'') {
-                inSingleQuotes = !inSingleQuotes;
-            } else if (Character.isWhitespace(c) && !inSingleQuotes) {
-                if (current.length() > 0) {
-                    args.add(current.toString());
-                    current.setLength(0);
-                }
-            } else {
-                current.append(c);
+    for (int i = 0; i < input.length(); i++) {
+        char c = input.charAt(i);
+
+        if (c == '\'' && !inDoubleQuotes) {
+            inSingleQuotes = !inSingleQuotes;
+        }
+        else if (c == '"' && !inSingleQuotes) {
+            inDoubleQuotes = !inDoubleQuotes;
+        }
+        else if (Character.isWhitespace(c)
+                && !inSingleQuotes
+                && !inDoubleQuotes) {
+
+            if (current.length() > 0) {
+                args.add(current.toString());
+                current.setLength(0);
             }
         }
-
-        if (current.length() > 0) {
-            args.add(current.toString());
+        else {
+            current.append(c);
         }
-
-        return args;
     }
-    public static void main(String[] args) throws Exception {
+
+    if (current.length() > 0) {
+        args.add(current.toString());
+    }
+
+    return args;
+}
+        public static void main(String[] args) throws Exception {
         // TODO: Uncomment the code below to pass the first stage
        Scanner scanner = new Scanner(System.in);
 
