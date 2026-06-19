@@ -155,7 +155,6 @@ public class Main {
                                 List<String> scriptCandidates = new ArrayList<>();
                                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                                     String line;
-                                    // Stage #ep2: Extract every matching suggestion from the script
                                     while ((line = reader.readLine()) != null) {
                                         if (!line.trim().isEmpty()) {
                                             scriptCandidates.add(line.trim());
@@ -179,7 +178,6 @@ public class Main {
                                     consecutiveTabs = 0;
                                 } 
                                 else {
-                                    // Stage #ep2: Branch rules evaluating tab triggers on multiple candidate options
                                     if (consecutiveTabs == 1) {
                                         System.out.print("\u0007");
                                         System.out.flush();
@@ -485,6 +483,7 @@ public class Main {
             for (String dir : pathsList) {
                 File file = new File(dir, command);
                 if (file.exists() && file.canExecute()) {
+                    parts.set(0, file.getAbsolutePath());
                     foundExecutable = true;
                     break;
                 }
