@@ -479,11 +479,12 @@ public class Main {
             }
 
             boolean foundExecutable = false;
+            File executableFile = null;
             String[] pathsList = System.getenv("PATH").split(File.pathSeparator);
             for (String dir : pathsList) {
                 File file = new File(dir, command);
                 if (file.exists() && file.canExecute()) {
-                    parts.set(0, file.getAbsolutePath());
+                    executableFile = file;
                     foundExecutable = true;
                     break;
                 }
@@ -492,6 +493,10 @@ public class Main {
             if (!foundExecutable) {
                 System.out.println(command + ": command not found");
                 continue;
+            }
+
+            if (command.contains(" ")) {
+                parts.set(0, executableFile.getAbsolutePath());
             }
 
             try {
