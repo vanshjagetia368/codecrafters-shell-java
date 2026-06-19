@@ -57,7 +57,6 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        // Builtin commands supported for tab completion in this stage
         String[] builtins = {"echo", "exit", "type"};
 
         while (true) {
@@ -66,7 +65,7 @@ public class Main {
 
             StringBuilder inputBuilder = new StringBuilder();
 
-            // Set terminal into raw mode to capture immediate keystrokes like Tab
+            // Set terminal into raw mode to capture individual keystrokes immediately
             String[] setRaw = {"/bin/sh", "-c", "stty -icanon -echo min 1 < /dev/tty"};
             Runtime.getRuntime().exec(setRaw).waitFor();
 
@@ -92,40 +91,47 @@ public class Main {
                 // Handle Tab Autocompletion
                 else if (c == '\t') {
                     String currentInput = inputBuilder.toString();
-                    String matchedBuiltin = null;
+                    
+                    // CRITICAL FIX: Only attempt builtin completion if we are typing the first word
+                    if (!currentInput.contains(" ") && !currentInput.isEmpty()) {
+                        String matchedBuiltin = null;
 
-                    for (String builtin : builtins) {
-                        if (!currentInput.isEmpty() && builtin.startsWith(currentInput)) {
-                            matchedBuiltin = builtin;
-                            break;
+                        for (String builtin : builtins) {
+                            if (builtin.startsWith(currentInput)) {
+                                matchedBuiltin = builtin;
+                                break;
+                            }
                         }
-                    }
 
-                    if (matchedBuiltin != null) {
-                        // complete the remaining slice of the string and append a space
-                        String completedText = matchedBuiltin.substring(currentInput.length()) + " ";
-                        inputBuilder.append(completedText);
-                        
-                        System.out.print(completedText);
-                        System.out.flush();
+                        if (matchedBuiltin != null) {
+                            // Complete the remaining slice of the string and append a space
+                            String completedText = matchedBuiltin.substring(currentInput.length()) + " ";
+                            inputBuilder.append(completedText);
+                            
+                            System.out.print(completedText);
+                            System.out.flush();
+                        } else {
+                            // Alert tone if no matching prefix is discovered
+                            System.out.print("\u0007");
+                            System.out.flush();
+                        }
                     } else {
-                        // Alert tone if no matching prefix is discovered
+                        // If we are already typing arguments, just flash a bell or do nothing for now
                         System.out.print("\u0007");
                         System.out.flush();
                     }
                 }
 
-                // Handle Backspace (127 is standard Linux/macOS backspace byte)
+                // Handle Backspace
                 else if (readByte == 127 || c == '\b') {
                     if (inputBuilder.length() > 0) {
                         inputBuilder.deleteCharAt(inputBuilder.length() - 1);
-                        // Move cursor back, overwrite with space, move cursor back again
                         System.out.print("\b \b");
                         System.out.flush();
                     }
                 }
 
-                // Handle standard printable characters
+                // Handle standard printable characters (including spaces typed by user)
                 else {
                     inputBuilder.append(c);
                     System.out.print(c);
@@ -233,7 +239,7 @@ public class Main {
 
                 if (stderrFile != null) {
                     try (FileOutputStream fos = new FileOutputStream(stderrFile, appendStderr)) {
-                        // Touch/create empty file if stderr target declared
+                        // Create empty file
                     }
                 }
                 continue;
