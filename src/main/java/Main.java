@@ -187,7 +187,6 @@ public class Main {
                                 }
                             }
                             
-                            // FIX: Only print out characters that aren't already typed in the matchPrefix context
                             String completedText = matched.substring(matchPrefix.length()) + suffix;
                             inputBuilder.append(completedText);
                             System.out.print(completedText);
@@ -361,7 +360,20 @@ public class Main {
                 continue;
             }
             
+            // Stage #oi7: Handle complete -p behavior
             else if (command.equals("complete")) {
+                if (parts.size() >= 3 && parts.get(1).equals("-p")) {
+                    String targetCmd = parts.get(2);
+                    String result = "complete: " + targetCmd + ": no completion specification" + System.lineSeparator();
+                    
+                    if (stdoutFile != null) {
+                        try (FileOutputStream fos = new FileOutputStream(stdoutFile, appendStdout)) {
+                            fos.write(result.getBytes());
+                        }
+                    } else {
+                        System.out.print(result);
+                    }
+                }
                 continue;
             }
 
