@@ -118,6 +118,22 @@ public class Main {
         backgroundJobs.removeAll(jobsToRemove);
     }
 
+    /**
+     * Helper to lookup an executable file path within the system environment PATH variables.
+     */
+    private static File findExecutable(String command) {
+        String pathEnv = System.getenv("PATH");
+        if (pathEnv == null) return null;
+        String[] pathsList = pathEnv.split(File.pathSeparator);
+        for (String dir : pathsList) {
+            File file = new File(dir, command);
+            if (file.exists() && file.canExecute()) {
+                return file;
+            }
+        }
+        return null;
+    }
+
     public static void main(String[] args) throws Exception {
         String[] builtins = {"echo", "exit", "type", "complete", "jobs"};
 
@@ -414,6 +430,48 @@ public class Main {
                 continue;
             }
 
+            // check for pipelines ("|")
+            int pipeIdx = parts.indexOf("|");
+            if (pipeIdx != -1) {
+                List<String> firstCmdParts = new ArrayList<>(parts.subList(0, pipeIdx));
+                List<String> secondCmdParts = new ArrayList<>(parts.subList(pipeIdx + 1, parts.size()));
+                
+                if (firstCmdParts.isEmpty() || secondCmdParts.isEmpty()) {
+                    continue;
+                }
+
+                File exec1 = findExecutable(firstCmdParts.get(0));
+                File exec2 = findExecutable(secondCmdParts.get(0));
+
+                if (exec1 == null) {
+                    System.out.println(firstCmdParts.get(0) + ": command not found");
+                    continue;
+                }
+                if (exec2 == null) {
+                    System.out.println(secondCmdParts.get(0) + ": command not found");
+                    continue;
+                }
+
+                try {
+                    ProcessBuilder pb1 = new ProcessBuilder(firstCmdParts);
+                    Map<String, String> env1 = pb1.environment();
+                    env1.put("PATH", exec1.getParent() + File.pathSeparator + env1.getOrDefault("PATH", ""));
+
+                    ProcessBuilder pb2 = new ProcessBuilder(secondCmdParts);
+                    Map<String, String> env2 = pb2.environment();
+                    env2.put("PATH", exec2.getParent() + File.pathSeparator + env2.getOrDefault("PATH", ""));
+
+                    List<ProcessBuilder> pipeline = List.of(pb1, pb2);
+                    List<Process> processes = ProcessBuilder.startPipeline(pipeline);
+
+                    // Wait for the final process in the pipeline to complete
+                    processes.get(processes.size() - 1).waitFor();
+                } catch (Exception e) {
+                    // Fallback
+                }
+                continue;
+            }
+
             String stdoutFile = null;
             String stderrFile = null;
             boolean appendStdout = false;
@@ -492,13 +550,9 @@ public class Main {
                     result = cmd + " is a shell builtin";
                 } else {
                     result = cmd + ": not found";
-                    String[] pathsList = System.getenv("PATH").split(File.pathSeparator);
-                    for (String dir : pathsList) {
-                        File file = new File(dir, cmd);
-                        if (file.exists() && file.canExecute()) {
-                            result = cmd + " is " + file.getAbsolutePath();
-                            break;
-                        }
+                    File file = findExecutable(cmd);
+                    if (file != null) {
+                        result = cmd + " is " + file.getAbsolutePath();
                     }
                 }
 
@@ -593,19 +647,8 @@ public class Main {
                 continue;
             }
 
-            boolean foundExecutable = false;
-            File executableFile = null;
-            String[] pathsList = System.getenv("PATH").split(File.pathSeparator);
-            for (String dir : pathsList) {
-                File file = new File(dir, command);
-                if (file.exists() && file.canExecute()) {
-                    executableFile = file;
-                    foundExecutable = true;
-                    break;
-                }
-            }
-
-            if (!foundExecutable) {
+            File executableFile = findExecutable(command);
+            if (executableFile == null) {
                 System.out.println(command + ": command not found");
                 continue;
             }
@@ -634,7 +677,6 @@ public class Main {
                 Process process = pb.start();
 
                 if (isBackgroundJob) {
-                    // Implement dynamic Job ID recycling logic here:
                     int currentJobId = 1;
                     if (!backgroundJobs.isEmpty()) {
                         int maxId = 0;
