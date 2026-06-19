@@ -109,28 +109,48 @@ public class Main {
                     consecutiveTabs++;
                     String currentInput = inputBuilder.toString();
                     
-                    if (!currentInput.contains(" ") && !currentInput.isEmpty()) {
+                    if (!currentInput.isEmpty()) {
                         Set<String> candidatesSet = new LinkedHashSet<>();
-                        
-                        // Check builtins
-                        for (String builtin : builtins) {
-                            if (builtin.startsWith(currentInput)) {
-                                candidatesSet.add(builtin);
+                        boolean isArgumentCompletion = currentInput.contains(" ");
+                        String partialToken = "";
+
+                        if (isArgumentCompletion) {
+                            // Extract text following the last space
+                            int lastSpaceIdx = currentInput.lastIndexOf(' ');
+                            partialToken = currentInput.substring(lastSpaceIdx + 1);
+                            
+                            // Scan the current directory for filename matches
+                            File currentDir = new File(".");
+                            File[] files = currentDir.listFiles();
+                            if (files != null) {
+                                for (File file : files) {
+                                    if (file.getName().startsWith(partialToken)) {
+                                        candidatesSet.add(file.getName());
+                                    }
+                                }
                             }
-                        }
-                        
-                        // Check PATH
-                        String pathEnv = System.getenv("PATH");
-                        if (pathEnv != null) {
-                            String[] paths = pathEnv.split(File.pathSeparator);
-                            for (String dirPath : paths) {
-                                File dir = new File(dirPath);
-                                if (dir.exists() && dir.isDirectory()) {
-                                    File[] files = dir.listFiles();
-                                    if (files != null) {
-                                        for (File file : files) {
-                                            if (file.isFile() && file.canExecute() && file.getName().startsWith(currentInput)) {
-                                                candidatesSet.add(file.getName());
+                        } else {
+                            partialToken = currentInput;
+                            // Check builtins
+                            for (String builtin : builtins) {
+                                if (builtin.startsWith(partialToken)) {
+                                    candidatesSet.add(builtin);
+                                }
+                            }
+                            
+                            // Check PATH
+                            String pathEnv = System.getenv("PATH");
+                            if (pathEnv != null) {
+                                String[] paths = pathEnv.split(File.pathSeparator);
+                                for (String dirPath : paths) {
+                                    File dir = new File(dirPath);
+                                    if (dir.exists() && dir.isDirectory()) {
+                                        File[] files = dir.listFiles();
+                                        if (files != null) {
+                                            for (File file : files) {
+                                                if (file.isFile() && file.canExecute() && file.getName().startsWith(partialToken)) {
+                                                    candidatesSet.add(file.getName());
+                                                }
                                             }
                                         }
                                     }
@@ -143,7 +163,7 @@ public class Main {
 
                         if (candidates.size() == 1) {
                             String matched = candidates.get(0);
-                            String completedText = matched.substring(currentInput.length()) + " ";
+                            String completedText = matched.substring(partialToken.length()) + " ";
                             inputBuilder.append(completedText);
                             System.out.print(completedText);
                             System.out.flush();
@@ -152,15 +172,13 @@ public class Main {
                         else if (candidates.size() > 1) {
                             String lcp = findLongestCommonPrefix(candidates);
                             
-                            // If the Lcp offers a progression forward, partial complete it!
-                            if (lcp.length() > currentInput.length()) {
-                                String completedText = lcp.substring(currentInput.length());
+                            if (lcp.length() > partialToken.length()) {
+                                String completedText = lcp.substring(partialToken.length());
                                 inputBuilder.append(completedText);
                                 System.out.print(completedText);
                                 System.out.flush();
-                                consecutiveTabs = 0; // Reset tab count since we updated the input line
+                                consecutiveTabs = 0;
                             } else {
-                                // No new progression found via LCP -> Handle fallback matching behaviors
                                 if (consecutiveTabs == 1) {
                                     System.out.print("\u0007");
                                     System.out.flush();
