@@ -55,7 +55,6 @@ public class Main {
 
         return args;
     }
-
     public static void main(String[] args) throws Exception {
 
     Scanner scanner = new Scanner(System.in);
@@ -306,7 +305,9 @@ public class Main {
 
     System.out.println(command + ": command not found");
 }
+    }
+
     scanner.close();
 }
-    }
+
 }
