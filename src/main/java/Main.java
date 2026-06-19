@@ -187,7 +187,7 @@ public class Main {
         if (isBuiltinCmd(command)) {
             if (stderrFile != null) {
                 try (FileOutputStream fos = new FileOutputStream(stderrFile, appendStderr)) {
-                    // Touches error redirection targets for built-ins
+                    // Touches error target pipes for built-ins
                 }
             }
 
@@ -203,9 +203,16 @@ public class Main {
             }
             else if (command.equals("cd")) {
                 if (parts.size() >= 2) {
-                    String pathArg = parts.get(1);
-                    File targetDir;
+                    String originalArg = parts.get(1);
+                    String pathArg = originalArg;
 
+                    if (pathArg.equals("~")) {
+                        pathArg = System.getenv("HOME");
+                    } else if (pathArg.startsWith("~/")) {
+                        pathArg = System.getenv("HOME") + pathArg.substring(1);
+                    }
+
+                    File targetDir;
                     if (pathArg.startsWith("/")) {
                         targetDir = new File(pathArg);
                     } else {
@@ -217,11 +224,11 @@ public class Main {
                         if (canonicalDir.exists() && canonicalDir.isDirectory()) {
                             System.setProperty("user.dir", canonicalDir.getAbsolutePath());
                         } else {
-                            outTarget.print("cd: " + pathArg + ": No such file or directory" + System.lineSeparator());
+                            outTarget.print("cd: " + originalArg + ": No such file or directory" + System.lineSeparator());
                             outTarget.flush();
                         }
                     } catch (Exception e) {
-                        outTarget.print("cd: " + pathArg + ": No such file or directory" + System.lineSeparator());
+                        outTarget.print("cd: " + originalArg + ": No such file or directory" + System.lineSeparator());
                         outTarget.flush();
                     }
                 }
