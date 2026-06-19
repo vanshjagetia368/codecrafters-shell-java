@@ -201,18 +201,18 @@ public class Main {
                         else if (candidates.size() > 1) {
                             String lcp = findLongestCommonPrefix(candidates);
                             
+                            // Check if the computed LCP pushes beyond our current token state
                             if (lcp.length() > matchPrefix.length()) {
                                 String completedText = lcp.substring(matchPrefix.length());
                                 inputBuilder.append(completedText);
                                 System.out.print(completedText);
                                 System.out.flush();
-                                consecutiveTabs = 0;
+                                consecutiveTabs = 0; // Reset tab interaction state due to updates
                             } else {
                                 if (consecutiveTabs == 1) {
                                     System.out.print("\u0007");
                                     System.out.flush();
                                 } else if (consecutiveTabs >= 2) {
-                                    // Format the listing output with trailing slashes for directory objects
                                     List<String> displayedCandidates = new ArrayList<>();
                                     for (String cand : candidates) {
                                         if (isArgumentCompletion && new File(targetDirPath, cand).isDirectory()) {
