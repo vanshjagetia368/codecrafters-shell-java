@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -134,10 +135,13 @@ public class Main {
         return null;
     }
 
-    /**
-     * Executes a single structured command block (either builtin or external).
-     * Accommodates manual plumbing redirection targets for input and output.
-     */
+    private static boolean isBuiltinCmd(String cmd) {
+        for (String b : builtins) {
+            if (b.equals(cmd)) return true;
+        }
+        return false;
+    }
+
     private static void executeCommandBlock(List<String> parts, InputStream pipelineIn, PrintStream pipelineOut) throws Exception {
         String stdoutFile = null;
         String stderrFile = null;
@@ -175,18 +179,12 @@ public class Main {
         if (parts.isEmpty()) return;
         String command = parts.get(0);
 
-        // Standardize output destination matching Redirections vs Pipelines
         PrintStream outTarget = pipelineOut;
         if (stdoutFile != null) {
             outTarget = new PrintStream(new FileOutputStream(stdoutFile, appendStdout), true);
         }
 
-        boolean isBuiltin = false;
-        for (String b : builtins) {
-            if (b.equals(command)) { isBuiltin = true; break; }
-        }
-
-        if (isBuiltin) {
+        if (isBuiltinCmd(command)) {
             if (command.equals("exit")) {
                 String[] setCooked = {"stty", "sane", "-F", "/dev/tty"};
                 Runtime.getRuntime().exec(setCooked).waitFor();
@@ -205,11 +203,7 @@ public class Main {
                 if (parts.size() >= 2) {
                     String cmd = parts.get(1);
                     String result = cmd + ": not found";
-                    boolean matchBuiltin = false;
-                    for (String b : builtins) {
-                        if (b.equals(cmd)) { matchBuiltin = true; break; }
-                    }
-                    if (matchBuiltin) {
+                    if (isBuiltinCmd(cmd)) {
                         result = cmd + " is a shell builtin";
                     } else {
                         File file = findExecutable(cmd);
@@ -264,7 +258,6 @@ public class Main {
 
             if (stdoutFile != null) outTarget.close();
         } else {
-            // External Executable Command Path
             File executableFile = findExecutable(command);
             if (executableFile == null) {
                 System.err.println(command + ": command not found");
@@ -275,7 +268,6 @@ public class Main {
             Map<String, String> env = pb.environment();
             env.put("PATH", executableFile.getParent() + File.pathSeparator + env.getOrDefault("PATH", ""));
 
-            // Setup I/O pipeline boundaries
             if (pipelineIn != System.in) {
                 pb.redirectInput(ProcessBuilder.Redirect.PIPE);
             }
@@ -297,16 +289,14 @@ public class Main {
 
             Process process = pb.start();
 
-            // Stream previous process output into this process stdin if it's connected via pipeline pipe
             if (pipelineIn != System.in) {
-                try (var os = process.getOutputStream()) {
+                try (OutputStream os = process.getOutputStream()) {
                     pipelineIn.transferTo(os);
                 }
             }
 
-            // Stream this process stdout into the pipeline stream buffer if downstream requires it
             if (outTarget != System.out && stdoutFile == null) {
-                try (var is = process.getInputStream()) {
+                try (InputStream is = process.getInputStream()) {
                     is.transferTo(outTarget);
                 }
             }
@@ -590,7 +580,6 @@ public class Main {
 
             if (parts.isEmpty()) continue;
 
-            // Pipeline Detection Structure Loop
             int pipeIdx = parts.indexOf("|");
             if (pipeIdx != -1) {
                 List<String> firstCmdParts = new ArrayList<>(parts.subList(0, pipeIdx));
@@ -598,26 +587,48 @@ public class Main {
                 
                 if (firstCmdParts.isEmpty() || secondCmdParts.isEmpty()) continue;
 
+                String firstCmd = firstCmdParts.get(0);
+
                 try {
-                    // Create an in-memory buffer channel to pipe outputs between elements sequentially
-                    ByteArrayOutputStream pipelinePipe = new ByteArrayOutputStream();
-                    PrintStream pipePrintStream = new PrintStream(pipelinePipe);
+                    // CRITICAL FIX: If the first command is an internal shell builtin, we MUST use a buffered in-memory stream.
+                    if (isBuiltinCmd(firstCmd)) {
+                        ByteArrayOutputStream pipelinePipe = new ByteArrayOutputStream();
+                        PrintStream pipePrintStream = new PrintStream(pipelinePipe);
 
-                    // Stage 1: Runs with original stdin, writes to our intermediate memory buffer
-                    executeCommandBlock(firstCmdParts, System.in, pipePrintStream);
-                    pipePrintStream.flush();
+                        executeCommandBlock(firstCmdParts, System.in, pipePrintStream);
+                        pipePrintStream.flush();
 
-                    // Convert written output into an InputStream for Stage 2
-                    InputStream pipeInputStream = new java.io.ByteArrayInputStream(pipelinePipe.toByteArray());
+                        InputStream pipeInputStream = new java.io.ByteArrayInputStream(pipelinePipe.toByteArray());
+                        executeCommandBlock(secondCmdParts, pipeInputStream, System.out);
+                    } 
+                    // Otherwise, both are system binaries (e.g. tail -f | head). Use ProcessBuilder.startPipeline 
+                    // so OS descriptors bridge data dynamically without stalling.
+                    else {
+                        File exec1 = findExecutable(firstCmdParts.get(0));
+                        File exec2 = findExecutable(secondCmdParts.get(0));
 
-                    // Stage 2: Consumes buffered input from Stage 1, writes out directly to stdout
-                    executeCommandBlock(secondCmdParts, pipeInputStream, System.out);
+                        if (exec1 == null || exec2 == null) {
+                            if (exec1 == null) System.out.println(firstCmdParts.get(0) + ": command not found");
+                            if (exec2 == null) System.out.println(secondCmdParts.get(0) + ": command not found");
+                            continue;
+                        }
 
-                } catch (Exception e) { /* Handle Execution Fallbacks cleanly */ }
+                        ProcessBuilder pb1 = new ProcessBuilder(firstCmdParts);
+                        pb1.environment().put("PATH", exec1.getParent() + File.pathSeparator + pb1.environment().getOrDefault("PATH", ""));
+
+                        ProcessBuilder pb2 = new ProcessBuilder(secondCmdParts);
+                        pb2.environment().put("PATH", exec2.getParent() + File.pathSeparator + pb2.environment().getOrDefault("PATH", ""));
+                        
+                        pb2.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                        pb2.redirectError(ProcessBuilder.Redirect.INHERIT);
+
+                        List<Process> processes = ProcessBuilder.startPipeline(List.of(pb1, pb2));
+                        processes.get(processes.size() - 1).waitFor();
+                    }
+                } catch (Exception e) { /* Handle Fallbacks */ }
                 continue;
             }
 
-            // Normal Execution path if no pipes exist
             try {
                 executeCommandBlock(parts, System.in, System.out);
             } catch (Exception e) { /* Handle safely */ }
