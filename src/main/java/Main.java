@@ -94,17 +94,14 @@ public class Main {
                     String currentInput = inputBuilder.toString();
                     
                     if (!currentInput.contains(" ") && !currentInput.isEmpty()) {
-                        // Gather all unique completion candidates (builtins + executables in PATH)
                         Set<String> candidates = new LinkedHashSet<>();
                         
-                        // Check builtins
                         for (String builtin : builtins) {
                             if (builtin.startsWith(currentInput)) {
                                 candidates.add(builtin);
                             }
                         }
                         
-                        // Check PATH directories for executables
                         String pathEnv = System.getenv("PATH");
                         if (pathEnv != null) {
                             String[] paths = pathEnv.split(File.pathSeparator);
@@ -123,7 +120,6 @@ public class Main {
                             }
                         }
 
-                        // If exactly 1 match is found across builtins and PATH, complete it
                         if (candidates.size() == 1) {
                             String matched = candidates.iterator().next();
                             String completedText = matched.substring(currentInput.length()) + " ";
@@ -132,7 +128,6 @@ public class Main {
                             System.out.print(completedText);
                             System.out.flush();
                         } else {
-                            // Multiple matches or no match -> ring terminal bell
                             System.out.print("\u0007");
                             System.out.flush();
                         }
@@ -225,6 +220,13 @@ public class Main {
                 } else {
                     System.out.print(result);
                 }
+
+                // FIX: Guarantee the requested stderr file is actually materialized on disk
+                if (stderrFile != null) {
+                    try (FileOutputStream fos = new FileOutputStream(stderrFile, appendStderr)) {
+                        fos.flush();
+                    }
+                }
                 continue;
             }
 
@@ -253,6 +255,13 @@ public class Main {
                     }
                 } else {
                     System.out.println(result);
+                }
+
+                // FIX: Guarantee the requested stderr file is actually materialized on disk
+                if (stderrFile != null) {
+                    try (FileOutputStream fos = new FileOutputStream(stderrFile, appendStderr)) {
+                        fos.flush();
+                    }
                 }
                 continue;
             }
