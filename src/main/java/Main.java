@@ -78,16 +78,22 @@ public class Main {
 
         String stdoutFile = null;
         String stderrFile = null;
+        boolean appendStdout = false;
 
         for (int i = 0; i < parts.size(); i++) {
 
             String token = parts.get(i);
 
-            if (token.equals(">") || token.equals("1>")) {
+            if (token.equals(">") || token.equals("1>")
+                    || token.equals(">>") || token.equals("1>>")) {
 
                 if (i + 1 < parts.size()) {
                     stdoutFile = parts.get(i + 1);
                 }
+
+                appendStdout =
+                        token.equals(">>")
+                                || token.equals("1>>");
 
                 List<String> newParts =
                         new ArrayList<>(parts.subList(0, i));
@@ -145,7 +151,7 @@ public class Main {
             if (stdoutFile != null) {
 
                 try (FileOutputStream fos =
-                             new FileOutputStream(stdoutFile)) {
+                             new FileOutputStream(stdoutFile, appendStdout)) {
 
                     fos.write(result.getBytes());
                 }
@@ -203,7 +209,7 @@ public class Main {
             if (stdoutFile != null) {
 
                 try (FileOutputStream fos =
-                             new FileOutputStream(stdoutFile)) {
+                             new FileOutputStream(stdoutFile, appendStdout)) {
 
                     fos.write(
                             (result + System.lineSeparator())
@@ -241,67 +247,59 @@ public class Main {
 
         if (!foundExecutable) {
 
-            String result =
-                    command + ": command not found";
-
-            if (stdoutFile != null) {
-
-                try (FileOutputStream fos =
-                             new FileOutputStream(stdoutFile)) {
-
-                    fos.write(
-                            (result + System.lineSeparator())
-                                    .getBytes()
-                    );
-                }
-
-            } else {
-
-                System.out.println(result);
-            }
-
+            System.out.println(command + ": command not found");
             continue;
         }
 
         try {
 
-    ProcessBuilder pb = new ProcessBuilder(parts);
+            ProcessBuilder pb =
+                    new ProcessBuilder(parts);
 
-    if (stdoutFile != null) {
-        pb.redirectOutput(new File(stdoutFile));
-    }
+            if (stdoutFile != null) {
 
-    if (stderrFile != null) {
-        pb.redirectError(new File(stderrFile));
-    }
+                if (appendStdout) {
 
-    Process process = pb.start();
+                    pb.redirectOutput(
+                            ProcessBuilder.Redirect.appendTo(
+                                    new File(stdoutFile)
+                            )
+                    );
 
-    // Print stdout only when not redirected
-    if (stdoutFile == null) {
-        InputStream stdout = process.getInputStream();
+                } else {
 
-        int ch;
-        while ((ch = stdout.read()) != -1) {
-            System.out.print((char) ch);
+                    pb.redirectOutput(
+                            ProcessBuilder.Redirect.to(
+                                    new File(stdoutFile)
+                            )
+                    );
+                }
+            }
+
+            if (stderrFile != null) {
+                pb.redirectError(new File(stderrFile));
+            }
+
+            Process process = pb.start();
+
+            if (stdoutFile == null) {
+
+                InputStream stdout =
+                        process.getInputStream();
+
+                int ch;
+
+                while ((ch = stdout.read()) != -1) {
+                    System.out.print((char) ch);
+                }
+            }
+
+            process.waitFor();
+
+        } catch (Exception e) {
+
+            System.out.println(command + ": command not found");
         }
-    }
-
-    // Print stderr only when not redirected
-    if (stderrFile == null) {
-        InputStream stderr = process.getErrorStream();
-
-        int ch;
-        while ((ch = stderr.read()) != -1) {
-            System.err.print((char) ch);
-        }
-    }
-
-    process.waitFor();
-
-} catch (Exception e) {
-    System.out.println(command + ": command not found");
-}
     }
 
     scanner.close();
